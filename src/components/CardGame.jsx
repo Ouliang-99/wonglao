@@ -2,13 +2,12 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { soundManager } from '../utils/audio';
 import { wsClient } from '../utils/websocket';
-import { DECK_TYPES, INTENSITY_LEVELS, INITIAL_DECKS, getCustomDecks } from '../data/decks';
+import { INTENSITY_LEVELS, INITIAL_DECKS, getCustomDecks } from '../data/decks';
 import { fetchAllCardsFromSupabase } from '../utils/supabase';
 import { Sparkles, ChevronRight, Lock, Flame, ShieldAlert, Award, Database, Eye, Zap } from 'lucide-react';
 import confetti from 'canvas-confetti';
 
 export default function CardGame({ isPremiumUnlocked, onOpenPassModal, roomCode, players = [], isHost = false }) {
-  const [selectedDeckType, setSelectedDeckType] = useState(DECK_TYPES.TRUTH_OR_DARE);
   const [selectedIntensity, setSelectedIntensity] = useState('free');
   const [cards, setCards] = useState([]);
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -18,7 +17,7 @@ export default function CardGame({ isPremiumUnlocked, onOpenPassModal, roomCode,
   const [currentTurnIndex, setCurrentTurnIndex] = useState(wsClient.gameState?.turnIndex || 0);
   const [remoteCard, setRemoteCard] = useState(wsClient.gameState?.syncedCard || null);
 
-  // Load and filter decks with Host Initial Sync
+  // Load and shuffle cards from ALL categories filtered only by intensity
   useEffect(() => {
     async function loadDecks() {
       let combined = [];
@@ -40,9 +39,8 @@ export default function CardGame({ isPremiumUnlocked, onOpenPassModal, roomCode,
         combined = [...INITIAL_DECKS, ...customDecks];
       }
 
-      const filtered = combined.filter(
-        (c) => c.deckType === selectedDeckType && c.intensity === selectedIntensity
-      );
+      // Filter ONLY by intensity (All categories mixed together!)
+      const filtered = combined.filter((c) => c.intensity === selectedIntensity);
 
       const shuffled = [...filtered].sort(() => Math.random() - 0.5);
       setCards(shuffled);
@@ -66,7 +64,7 @@ export default function CardGame({ isPremiumUnlocked, onOpenPassModal, roomCode,
     }
 
     loadDecks();
-  }, [selectedDeckType, selectedIntensity, roomCode, isHost]);
+  }, [selectedIntensity, roomCode, isHost]);
 
   // Subscribe to WebSocket Game State Sync
   useEffect(() => {
@@ -164,7 +162,7 @@ export default function CardGame({ isPremiumUnlocked, onOpenPassModal, roomCode,
           </div>
 
           <div className="text-right">
-            <span className="text-[10px] text-cyan-400 font-bold block">ทุกจอเห็นตรงกัน</span>
+            <span className="text-[10px] text-cyan-400 font-bold block">สุ่มคำถามทุกหมวด</span>
             <span className="text-[11px] text-slate-400 font-semibold">
               {players.length} คนในห้อง
             </span>
@@ -178,49 +176,10 @@ export default function CardGame({ isPremiumUnlocked, onOpenPassModal, roomCode,
           <Database className={`w-3.5 h-3.5 ${isDatabaseLoaded ? 'text-emerald-400' : 'text-amber-400'}`} />
           <span>คลังการ์ด: {isDatabaseLoaded ? 'Supabase Live DB 🟢' : 'Local Offline Mode 🟡'}</span>
         </span>
-        <span>คำถาม {cards.length} ใบ</span>
+        <span>คำถามสุ่มรวม {cards.length} ใบ</span>
       </div>
 
-      {/* Deck Type Tabs */}
-      <div className="grid grid-cols-3 gap-1.5 bg-slate-950/80 p-1.5 rounded-2xl border border-slate-800 backdrop-blur-md">
-        <button
-          onClick={() => { soundManager.playClick(); setSelectedDeckType(DECK_TYPES.TRUTH_OR_DARE); }}
-          className={`py-2.5 px-2 rounded-xl text-xs font-bold transition flex flex-col items-center justify-center space-y-1 ${
-            selectedDeckType === DECK_TYPES.TRUTH_OR_DARE
-              ? 'bg-gradient-to-r from-pink-500 to-rose-600 text-white shadow-[0_0_15px_#FF007A]'
-              : 'text-slate-400 hover:text-slate-200'
-          }`}
-        >
-          <span>Truth or Dare</span>
-          <span className="text-[10px] opacity-70">ความจริง/กล้า</span>
-        </button>
-
-        <button
-          onClick={() => { soundManager.playClick(); setSelectedDeckType(DECK_TYPES.NEVER_HAVE_I_EVER); }}
-          className={`py-2.5 px-2 rounded-xl text-xs font-bold transition flex flex-col items-center justify-center space-y-1 ${
-            selectedDeckType === DECK_TYPES.NEVER_HAVE_I_EVER
-              ? 'bg-gradient-to-r from-cyan-500 to-teal-400 text-slate-950 shadow-[0_0_15px_#00F2FE]'
-              : 'text-slate-400 hover:text-slate-200'
-          }`}
-        >
-          <span>Never Have I</span>
-          <span className="text-[10px] opacity-70">ฉันไม่เคย</span>
-        </button>
-
-        <button
-          onClick={() => { soundManager.playClick(); setSelectedDeckType(DECK_TYPES.MOST_LIKELY_TO); }}
-          className={`py-2.5 px-2 rounded-xl text-xs font-bold transition flex flex-col items-center justify-center space-y-1 ${
-            selectedDeckType === DECK_TYPES.MOST_LIKELY_TO
-              ? 'bg-gradient-to-r from-amber-500 to-yellow-400 text-slate-950 shadow-[0_0_15px_#FFD700]'
-              : 'text-slate-400 hover:text-slate-200'
-          }`}
-        >
-          <span>Most Likely To</span>
-          <span className="text-[10px] opacity-70">ใครมีโอกาสสุด</span>
-        </button>
-      </div>
-
-      {/* Intensity Mode Selector */}
+      {/* Intensity Mode Selector (Free / 18+ / วงแตก) */}
       <div className="flex justify-between items-center bg-slate-900/90 p-2 rounded-2xl border border-slate-800 space-x-1.5">
         {Object.keys(INTENSITY_LEVELS).map((key) => {
           const level = INTENSITY_LEVELS[key];
@@ -330,7 +289,7 @@ export default function CardGame({ isPremiumUnlocked, onOpenPassModal, roomCode,
           ) : (
             <div className="w-full h-full bg-slate-900/80 rounded-3xl border border-slate-800 flex flex-col items-center justify-center p-6 text-center text-slate-400">
               <ShieldAlert className="w-10 h-10 text-amber-400 mb-2" />
-              <p>ไม่มีการ์ดในหมวดนี้ กรุณาเปลี่ยนหมวด หรือสร้างการ์ด custom!</p>
+              <p>ไม่มีการ์ดในหมวดนี้ กรุณาเปลี่ยนระดับ หรือสร้างการ์ด custom!</p>
             </div>
           )}
         </AnimatePresence>
@@ -350,7 +309,7 @@ export default function CardGame({ isPremiumUnlocked, onOpenPassModal, roomCode,
           onClick={handleNextCard}
           className="flex-[2] py-3.5 bg-gradient-to-r from-pink-500 via-purple-500 to-cyan-400 text-slate-950 font-black rounded-2xl text-sm shadow-[0_0_20px_rgba(255,0,122,0.5)] hover:shadow-[0_0_30px_rgba(0,242,254,0.7)] active:scale-95 transition flex items-center justify-center space-x-2"
         >
-          <span>ใบถัดไป (วนตา)</span>
+          <span>ใบถัดไป (สุ่มหมวด)</span>
           <ChevronRight className="w-5 h-5" />
         </button>
       </div>
