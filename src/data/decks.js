@@ -1,0 +1,227 @@
+// WongLao (วงเหล้า) - Thai Party Decks & Card Store
+
+export const DECK_TYPES = {
+  TRUTH_OR_DARE: 'truth_or_dare',
+  NEVER_HAVE_I_EVER: 'never_have_i_ever',
+  MOST_LIKELY_TO: 'most_likely_to'
+};
+
+export const INTENSITY_LEVELS = {
+  FREE: {
+    id: 'free',
+    name: 'กระชับมิตร (Free)',
+    color: 'from-emerald-500 to-teal-400',
+    badge: '🟢 สายละลายพฤติกรรม',
+    isPremium: false,
+    description: 'เหมาะกับเพื่อนใหม่ เริ่มวง หรือสายคุยชิลๆ ไม่ติดเรท'
+  },
+  SPICY: {
+    id: 'spicy',
+    name: 'โหมด 18+ (Premium)',
+    color: 'from-pink-500 to-rose-600',
+    badge: '🔴 สายเสียวซาบซ่า',
+    isPremium: true,
+    description: 'คำถามสายแซ่บ ประสบการณ์ความรัก และภารกิจสุดสยิว'
+  },
+  EXTREME: {
+    id: 'extreme',
+    name: 'โหมดวงแตก (Premium)',
+    color: 'from-amber-500 to-red-600',
+    badge: '💥 สายเคลียร์ใจ วงแตก',
+    isPremium: true,
+    description: 'แฉความลับ แฉรักสามเส้า ถามตรงตอบแรงเสี่ยงเสียเพื่อน!'
+  }
+};
+
+export const INITIAL_DECKS = [
+  // --- TRUTH OR DARE (ความจริงหรือความกล้า) ---
+  {
+    id: 'tod_free_1',
+    deckType: DECK_TYPES.TRUTH_OR_DARE,
+    type: 'truth',
+    intensity: 'free',
+    prompt: 'ความจริง: เรื่องฮาๆ อายที่สุดที่เคยเกิดขึ้นกับคุณในที่สาธารณะคืออะไร?',
+    penalty: 'ดื่ม 1 จิบ หรือ เล่าให้จบภายใน 30 วินาที'
+  },
+  {
+    id: 'tod_free_2',
+    deckType: DECK_TYPES.TRUTH_OR_DARE,
+    type: 'dare',
+    intensity: 'free',
+    prompt: 'ความกล้า: เต้นท่าที่คิดว่าตลกที่สุดกลางวงเป็นเวลา 15 วินาที',
+    penalty: 'ดื่ม 1 จิบ หากไม่ยอมเต้น'
+  },
+  {
+    id: 'tod_free_3',
+    deckType: DECK_TYPES.TRUTH_OR_DARE,
+    type: 'truth',
+    intensity: 'free',
+    prompt: 'ความจริง: ดารา หรืออินฟลูเอนเซอร์คนไหนที่คุณแอบชอบมากที่สุด?',
+    penalty: 'ดื่ม 1 จิบ'
+  },
+  {
+    id: 'tod_free_4',
+    deckType: DECK_TYPES.TRUTH_OR_DARE,
+    type: 'dare',
+    intensity: 'free',
+    prompt: 'ความกล้า: ส่งสติกเกอร์รูปหัวใจให้คนที่คุยอยู่ล่าสุดในแชตโดยไม่พิมอะไรต่อ',
+    penalty: 'ดื่ม 2 จิบ'
+  },
+  {
+    id: 'tod_spicy_1',
+    deckType: DECK_TYPES.TRUTH_OR_DARE,
+    type: 'truth',
+    intensity: 'spicy',
+    prompt: 'ความจริง: จูบแรกเกิดขึ้นตอนอายุเท่าไหร่ และเกิดขึ้นที่ไหน?',
+    penalty: 'ดื่ม 2 จิบ'
+  },
+  {
+    id: 'tod_spicy_2',
+    deckType: DECK_TYPES.TRUTH_OR_DARE,
+    type: 'dare',
+    intensity: 'spicy',
+    prompt: 'ความกล้า: สบตากับคนที่นั่งทางขวามือเป็นเวลา 20 วินาทีโดยห้ามยิ้มหรือหัวเราะ',
+    penalty: 'ดื่ม 1 จิบทั้งคู่ถ้าหลุดหัวเราะ'
+  },
+  {
+    id: 'tod_spicy_3',
+    deckType: DECK_TYPES.TRUTH_OR_DARE,
+    type: 'truth',
+    intensity: 'spicy',
+    prompt: 'ความจริง: สเปกคนที่คุณพ่ายแพ้ทางความน่ารักในวงนี้คือใคร?',
+    penalty: 'ดื่ม 2 จิบ'
+  },
+  {
+    id: 'tod_extreme_1',
+    deckType: DECK_TYPES.TRUTH_OR_DARE,
+    type: 'truth',
+    intensity: 'extreme',
+    prompt: 'ความจริง: เคยแอบชอบแฟนเก่าของเพื่อนสนิทตนเองหรือไม่?',
+    penalty: 'ดื่มหมดแก้ว!'
+  },
+  {
+    id: 'tod_extreme_2',
+    deckType: DECK_TYPES.TRUTH_OR_DARE,
+    type: 'dare',
+    intensity: 'extreme',
+    prompt: 'ความกล้า: โทรหาคนคุยเก่าแล้วพูดว่า "คิดถึงนะ" แล้ววางสายทันที',
+    penalty: 'ดื่ม 3 จิบใหญ่'
+  },
+
+  // --- NEVER HAVE I EVER (ฉันไม่เคย) ---
+  {
+    id: 'nhie_free_1',
+    deckType: DECK_TYPES.NEVER_HAVE_I_EVER,
+    type: 'never',
+    intensity: 'free',
+    prompt: 'ฉันไม่เคย... แกล้งหลับในห้องเรียนหรือในที่ทำงาน',
+    penalty: 'ใครเคยดื่ม 1 จิบ'
+  },
+  {
+    id: 'nhie_free_2',
+    deckType: DECK_TYPES.NEVER_HAVE_I_EVER,
+    type: 'never',
+    intensity: 'free',
+    prompt: 'ฉันไม่เคย... กดเข้าสตอรี่ไอจีคนอื่นแล้วเผลอมือไปโดนปุ่มกดส่งหัวใจ',
+    penalty: 'ใครเคยดื่ม 1 จิบ'
+  },
+  {
+    id: 'nhie_free_3',
+    deckType: DECK_TYPES.NEVER_HAVE_I_EVER,
+    type: 'never',
+    intensity: 'free',
+    prompt: 'ฉันไม่เคย... ทำอาหารหกใส่พื้นแล้วหยิบขึ้นมากินต่อตามกฎ 5 วินาที',
+    penalty: 'ใครเคยดื่ม 1 จิบ'
+  },
+  {
+    id: 'nhie_spicy_1',
+    deckType: DECK_TYPES.NEVER_HAVE_I_EVER,
+    type: 'never',
+    intensity: 'spicy',
+    prompt: 'ฉันไม่เคย... แอบส่องแชตหรือรูปเก่าของแฟนเก่าตอนตีสอง',
+    penalty: 'ใครเคยดื่ม 2 จิบ'
+  },
+  {
+    id: 'nhie_spicy_2',
+    deckType: DECK_TYPES.NEVER_HAVE_I_EVER,
+    type: 'never',
+    intensity: 'spicy',
+    prompt: 'ฉันไม่เคย... คุยซ้อนมากกว่า 2 คนพร้อมกัน',
+    penalty: 'ใครเคยดื่ม 2 จิบ'
+  },
+  {
+    id: 'nhie_extreme_1',
+    deckType: DECK_TYPES.NEVER_HAVE_I_EVER,
+    type: 'never',
+    intensity: 'extreme',
+    prompt: 'ฉันไม่เคย... เผลอส่งแชตด่าคนอื่นผิดกลุ่มไปเข้ากลุ่มเจ้าตัว',
+    penalty: 'ใครเคยดื่มหมดแก้ว!'
+  },
+  {
+    id: 'nhie_extreme_2',
+    deckType: DECK_TYPES.NEVER_HAVE_I_EVER,
+    type: 'never',
+    intensity: 'extreme',
+    prompt: 'ฉันไม่เคย... โกหกเพื่อนในวงนี้เกี่ยวกับเรื่องแฟนหรือคนคุย',
+    penalty: 'ใครเคยดื่ม 3 จิบ'
+  },
+
+  // --- MOST LIKELY TO (ใครมีโอกาสสุด) ---
+  {
+    id: 'mlt_free_1',
+    deckType: DECK_TYPES.MOST_LIKELY_TO,
+    type: 'likely',
+    intensity: 'free',
+    prompt: 'ใครในวงนี้มีโอกาส... นอนหลับคาวงเหล้าเป็นคนแรกมากที่สุด?',
+    penalty: 'นับ 1 2 3 แล้วชี้พร้อมกัน! คนโดนชี้เยอะสุดดื่ม 1 จิบ'
+  },
+  {
+    id: 'mlt_free_2',
+    deckType: DECK_TYPES.MOST_LIKELY_TO,
+    type: 'likely',
+    intensity: 'free',
+    prompt: 'ใครในวงนี้มีโอกาส... โดนแก๊งคอลเซ็นเตอร์หลอกเงินมากที่สุด?',
+    penalty: 'ชี้พร้อมกัน! คนโดนชี้เยอะสุดดื่ม 1 จิบ'
+  },
+  {
+    id: 'mlt_spicy_1',
+    deckType: DECK_TYPES.MOST_LIKELY_TO,
+    type: 'likely',
+    intensity: 'spicy',
+    prompt: 'ใครในวงนี้มีโอกาส... โทรหาแฟนเก่าตอนเมามากที่สุด?',
+    penalty: 'ชี้พร้อมกัน! คนโดนชี้เยอะสุดดื่ม 2 จิบ'
+  },
+  {
+    id: 'mlt_spicy_2',
+    deckType: DECK_TYPES.MOST_LIKELY_TO,
+    type: 'likely',
+    intensity: 'spicy',
+    prompt: 'ใครในวงนี้มีโอกาส... เปย์เงินให้คนคุยหมดตัวมากที่สุด?',
+    penalty: 'ชี้พร้อมกัน! คนโดนชี้เยอะสุดดื่ม 2 จิบ'
+  },
+  {
+    id: 'mlt_extreme_1',
+    deckType: DECK_TYPES.MOST_LIKELY_TO,
+    type: 'likely',
+    intensity: 'extreme',
+    prompt: 'ใครในวงนี้มีความลับเยอะที่สุดแต่ไม่เคยเล่าให้ใครฟัง?',
+    penalty: 'ชี้พร้อมกัน! คนโดนชี้ดื่ม 2 จิบ หรือยอมแฉ 1 ความลับ'
+  }
+];
+
+export function getCustomDecks() {
+  try {
+    const saved = localStorage.getItem('wonglao_custom_decks');
+    return saved ? JSON.parse(saved) : [];
+  } catch (e) {
+    return [];
+  }
+}
+
+export function saveCustomDecks(decks) {
+  try {
+    localStorage.setItem('wonglao_custom_decks', JSON.stringify(decks));
+  } catch (e) {
+    console.error('Failed to save custom decks', e);
+  }
+}

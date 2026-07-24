@@ -1,0 +1,217 @@
+import React, { useState, useEffect } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { soundManager } from '../utils/audio';
+import { DECK_TYPES, INTENSITY_LEVELS, INITIAL_DECKS, getCustomDecks } from '../data/decks';
+import { Sparkles, ChevronRight, Lock, Flame, ShieldAlert, Award, RefreshCw } from 'lucide-react';
+import confetti from 'canvas-confetti';
+
+export default function CardGame({ isPremiumUnlocked, onOpenPassModal, onSyncCard }) {
+  const [selectedDeckType, setSelectedDeckType] = useState(DECK_TYPES.TRUTH_OR_DARE);
+  const [selectedIntensity, setSelectedIntensity] = useState('free');
+  const [cards, setCards] = useState([]);
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const [isFlipped, setIsFlipped] = useState(false);
+  const [penaltyPoints, setPenaltyPoints] = useState(0);
+
+  // Load and filter decks
+  useEffect(() => {
+    const customDecks = getCustomDecks();
+    const allAvailable = [...INITIAL_DECKS, ...customDecks];
+
+    const filtered = allAvailable.filter(
+      (c) => c.deckType === selectedDeckType && c.intensity === selectedIntensity
+    );
+
+    // Shuffle cards
+    const shuffled = [...filtered].sort(() => Math.random() - 0.5);
+    setCards(shuffled);
+    setCurrentIndex(0);
+    setIsFlipped(false);
+  }, [selectedDeckType, selectedIntensity]);
+
+  const currentCard = cards[currentIndex];
+
+  const handleNextCard = () => {
+    soundManager.playCardFlip();
+    setIsFlipped(false);
+    setTimeout(() => {
+      const nextIdx = (currentIndex + 1) % (cards.length || 1);
+      setCurrentIndex(nextIdx);
+      if (cards[nextIdx] && onSyncCard) {
+        onSyncCard(cards[nextIdx]);
+      }
+    }, 150);
+  };
+
+  const handleIntensityChange = (levelKey) => {
+    const levelInfo = INTENSITY_LEVELS[levelKey.toUpperCase()];
+    if (levelInfo.isPremium && !isPremiumUnlocked) {
+      soundManager.playClick();
+      onOpenPassModal();
+    } else {
+      soundManager.playClick();
+      setSelectedIntensity(levelKey);
+    }
+  };
+
+  const addPenalty = () => {
+    soundManager.playGlassClink();
+    setPenaltyPoints((p) => p + 1);
+    confetti({ particleCount: 40, spread: 50, origin: { y: 0.8 } });
+  };
+
+  return (
+    <div className="w-full max-w-md mx-auto flex flex-col space-y-5 p-2">
+      {/* Deck Type Tabs */}
+      <div className="grid grid-cols-3 gap-1.5 bg-slate-950/80 p-1.5 rounded-2xl border border-slate-800 backdrop-blur-md">
+        <button
+          onClick={() => { soundManager.playClick(); setSelectedDeckType(DECK_TYPES.TRUTH_OR_DARE); }}
+          className={`py-2.5 px-2 rounded-xl text-xs font-bold transition flex flex-col items-center justify-center space-y-1 ${
+            selectedDeckType === DECK_TYPES.TRUTH_OR_DARE
+              ? 'bg-gradient-to-r from-pink-500 to-rose-600 text-white shadow-[0_0_15px_#FF007A]'
+              : 'text-slate-400 hover:text-slate-200'
+          }`}
+        >
+          <span>Truth or Dare</span>
+          <span className="text-[10px] opacity-70">ความจริง/กล้า</span>
+        </button>
+
+        <button
+          onClick={() => { soundManager.playClick(); setSelectedDeckType(DECK_TYPES.NEVER_HAVE_I_EVER); }}
+          className={`py-2.5 px-2 rounded-xl text-xs font-bold transition flex flex-col items-center justify-center space-y-1 ${
+            selectedDeckType === DECK_TYPES.NEVER_HAVE_I_EVER
+              ? 'bg-gradient-to-r from-cyan-500 to-teal-400 text-slate-950 shadow-[0_0_15px_#00F2FE]'
+              : 'text-slate-400 hover:text-slate-200'
+          }`}
+        >
+          <span>Never Have I</span>
+          <span className="text-[10px] opacity-70">ฉันไม่เคย</span>
+        </button>
+
+        <button
+          onClick={() => { soundManager.playClick(); setSelectedDeckType(DECK_TYPES.MOST_LIKELY_TO); }}
+          className={`py-2.5 px-2 rounded-xl text-xs font-bold transition flex flex-col items-center justify-center space-y-1 ${
+            selectedDeckType === DECK_TYPES.MOST_LIKELY_TO
+              ? 'bg-gradient-to-r from-amber-500 to-yellow-400 text-slate-950 shadow-[0_0_15px_#FFD700]'
+              : 'text-slate-400 hover:text-slate-200'
+          }`}
+        >
+          <span>Most Likely To</span>
+          <span className="text-[10px] opacity-70">ใครมีโอกาสสุด</span>
+        </button>
+      </div>
+
+      {/* Intensity Mode Selector (Free / 18+ / วงแตก) */}
+      <div className="flex justify-between items-center bg-slate-900/90 p-2 rounded-2xl border border-slate-800 space-x-1.5">
+        {Object.keys(INTENSITY_LEVELS).map((key) => {
+          const level = INTENSITY_LEVELS[key];
+          const isSelected = selectedIntensity === level.id;
+          const isLocked = level.isPremium && !isPremiumUnlocked;
+
+          return (
+            <button
+              key={level.id}
+              onClick={() => handleIntensityChange(level.id)}
+              className={`flex-1 py-2 px-1 rounded-xl text-[11px] font-bold transition-all relative flex items-center justify-center space-x-1 ${
+                isSelected
+                  ? `bg-gradient-to-r ${level.color} text-white shadow-md`
+                  : 'bg-slate-950 text-slate-400 border border-slate-800'
+              }`}
+            >
+              <span>{level.name.split(' ')[0]}</span>
+              {isLocked && <Lock className="w-3 h-3 text-amber-400" />}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Card Display Area with Framer Motion */}
+      <div className="relative w-full h-80 perspective-1000">
+        <AnimatePresence mode="wait">
+          {currentCard ? (
+            <motion.div
+              key={currentCard.id + currentIndex}
+              initial={{ rotateY: 90, opacity: 0, scale: 0.9 }}
+              animate={{ rotateY: 0, opacity: 1, scale: 1 }}
+              exit={{ rotateY: -90, opacity: 0, scale: 0.9 }}
+              transition={{ duration: 0.3 }}
+              onClick={() => {
+                soundManager.playCardFlip();
+                setIsFlipped(!isFlipped);
+              }}
+              className={`w-full h-full rounded-3xl p-6 cursor-pointer select-none flex flex-col justify-between border-2 transition-all shadow-[0_0_30px_rgba(255,0,122,0.2)] ${
+                currentCard.type === 'truth'
+                  ? 'bg-gradient-to-br from-slate-950 via-slate-900 to-pink-950/80 border-pink-500'
+                  : currentCard.type === 'dare'
+                  ? 'bg-gradient-to-br from-slate-950 via-slate-900 to-cyan-950/80 border-cyan-400'
+                  : 'bg-gradient-to-br from-slate-950 via-slate-900 to-amber-950/80 border-amber-400'
+              }`}
+            >
+              {/* Card Header Tag */}
+              <div className="flex items-center justify-between">
+                <span className="px-3 py-1 rounded-full text-xs font-black uppercase tracking-wider bg-slate-900/80 border border-slate-700 text-white flex items-center space-x-1">
+                  <Sparkles className="w-3.5 h-3.5 text-pink-400" />
+                  <span>
+                    {currentCard.type === 'truth'
+                      ? 'ความจริง (Truth)'
+                      : currentCard.type === 'dare'
+                      ? 'ความกล้า (Dare)'
+                      : currentCard.type === 'never'
+                      ? 'ฉันไม่เคย...'
+                      : 'ใครมีโอกาสสุด'}
+                  </span>
+                </span>
+                <span className="text-xs font-bold text-slate-400">
+                  {currentIndex + 1} / {cards.length}
+                </span>
+              </div>
+
+              {/* Card Content Body */}
+              <div className="my-auto text-center px-2">
+                <p className="text-xl font-bold text-white leading-relaxed tracking-wide">
+                  {currentCard.prompt}
+                </p>
+
+                {currentCard.penalty && (
+                  <div className="mt-4 pt-3 border-t border-slate-800 text-sm font-semibold text-pink-400 flex items-center justify-center space-x-1">
+                    <Flame className="w-4 h-4 text-amber-400" />
+                    <span>บทลงโทษ: {currentCard.penalty}</span>
+                  </div>
+                )}
+              </div>
+
+              {/* Card Footer Prompt */}
+              <div className="text-center text-xs text-slate-500 italic">
+                แตะเพื่อพลิกการ์ด / กดปุ่มด้านล่างเพื่อเปลี่ยนใบถัดไป
+              </div>
+            </motion.div>
+          ) : (
+            <div className="w-full h-full bg-slate-900/80 rounded-3xl border border-slate-800 flex flex-col items-center justify-center p-6 text-center text-slate-400">
+              <ShieldAlert className="w-10 h-10 text-amber-400 mb-2" />
+              <p>ไม่มีการ์ดในหมวดนี้ กรุณาเปลี่ยนหมวด หรือสร้างการ์ด custom!</p>
+            </div>
+          )}
+        </AnimatePresence>
+      </div>
+
+      {/* Control Actions */}
+      <div className="flex space-x-3">
+        <button
+          onClick={addPenalty}
+          className="flex-1 py-3.5 bg-slate-900 hover:bg-slate-800 border border-slate-700 rounded-2xl text-xs font-bold text-amber-400 flex items-center justify-center space-x-1.5 active:scale-95 transition"
+        >
+          <Award className="w-4 h-4 text-amber-400" />
+          <span>บวกจิบสะสม ({penaltyPoints}) 🍻</span>
+        </button>
+
+        <button
+          onClick={handleNextCard}
+          className="flex-[2] py-3.5 bg-gradient-to-r from-pink-500 via-purple-500 to-cyan-400 text-slate-950 font-black rounded-2xl text-sm shadow-[0_0_20px_rgba(255,0,122,0.5)] hover:shadow-[0_0_30px_rgba(0,242,254,0.7)] active:scale-95 transition flex items-center justify-center space-x-2"
+        >
+          <span>ใบถัดไป</span>
+          <ChevronRight className="w-5 h-5" />
+        </button>
+      </div>
+    </div>
+  );
+}
