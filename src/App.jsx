@@ -143,7 +143,17 @@ export default function App() {
   );
 
   return (
-    <div className="min-h-screen bg-[#0B0E14] pb-12 text-slate-100 selection:bg-pink-500 selection:text-white">
+    <div className="min-h-screen bg-[#0B0E14] pb-12 text-slate-100 selection:bg-pink-500 selection:text-white relative">
+      {/* Top Floating Toast Notification Overlay */}
+      {syncedBanner && (
+        <div className="fixed top-16 left-1/2 -translate-x-1/2 z-50 w-11/12 max-w-sm pointer-events-none transition-all duration-300 animate-slideDown">
+          <div className="flex items-center justify-center gap-2 border border-cyan-400/60 bg-slate-950/90 backdrop-blur-md px-4 py-2.5 rounded-2xl text-xs font-bold text-cyan-300 shadow-[0_10px_30px_rgba(0,242,254,0.3)]">
+            <Radio className="h-4 w-4 text-cyan-400 animate-spin flex-shrink-0" />
+            <span className="truncate">{syncedBanner}</span>
+          </div>
+        </div>
+      )}
+
       <header className="sticky top-0 z-40 border-b border-slate-800/80 bg-slate-950/80 px-4 py-3 backdrop-blur-md">
         <div className="mx-auto flex max-w-md items-center justify-between">
           <div className="flex items-center gap-2">
@@ -163,8 +173,6 @@ export default function App() {
           </div>
         </div>
       </header>
-
-      {syncedBanner && <div className="flex items-center justify-center gap-2 border-b border-cyan-500/50 bg-cyan-950/60 p-2 text-xs font-bold text-cyan-300"><Radio className="h-4 w-4" />{syncedBanner}</div>}
 
       <main className="mx-auto w-full max-w-md space-y-4 px-4 pt-5">
         {!roomCode ? (
