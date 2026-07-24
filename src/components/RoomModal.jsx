@@ -2,18 +2,24 @@ import React, { useState, useEffect } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
 import { wsClient } from '../utils/websocket';
 import { soundManager } from '../utils/audio';
-import { X, Users, QrCode, LogOut, Copy, Check, Sparkles, UserCheck, Shield } from 'lucide-react';
+import { X, Users, QrCode, LogOut, Copy, Check } from 'lucide-react';
 
 const AVATARS = ['🍻', '🦊', '🐲', '👑', '🍹', '🐯', '🔥', '🥳', '😎', '💃'];
 
-export default function RoomModal({ isOpen, onClose }) {
+export default function RoomModal({ isOpen, onClose, initialRoomCode = '' }) {
   const [roomCode, setRoomCode] = useState(wsClient.roomCode);
   const [playerName, setPlayerName] = useState(() => localStorage.getItem('wonglao_player_name') || '');
   const [playerAvatar, setPlayerAvatar] = useState(() => localStorage.getItem('wonglao_player_avatar') || '🍻');
-  const [inputCode, setInputCode] = useState('');
+  const [inputCode, setInputCode] = useState(initialRoomCode);
   const [players, setPlayers] = useState(wsClient.players);
   const [copied, setCopied] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
+
+  useEffect(() => {
+    if (initialRoomCode) {
+      setInputCode(initialRoomCode);
+    }
+  }, [initialRoomCode]);
 
   useEffect(() => {
     const unsubscribe = wsClient.subscribe((event) => {
@@ -24,6 +30,9 @@ export default function RoomModal({ isOpen, onClose }) {
         setErrorMsg('');
       } else if (type === 'PLAYER_JOINED' || type === 'PLAYER_LEFT') {
         setPlayers(payload.players);
+      } else if (type === 'ROOM_LEFT') {
+        setRoomCode(null);
+        setPlayers([]);
       } else if (type === 'ERROR') {
         setErrorMsg(payload.message || 'เกิดข้อผิดพลาดในการเชื่อมต่อ');
       }
@@ -87,7 +96,7 @@ export default function RoomModal({ isOpen, onClose }) {
           </p>
         </div>
 
-        {/* Player Profile Selector (Name & Avatar) */}
+        {/* Player Profile Selector */}
         {!roomCode && (
           <div className="bg-slate-950 p-3.5 rounded-2xl border border-slate-800 space-y-2.5">
             <label className="text-xs font-bold text-slate-300 block">
@@ -110,7 +119,6 @@ export default function RoomModal({ isOpen, onClose }) {
                 className="flex-1 bg-slate-900 border border-slate-700 rounded-xl px-3 text-sm text-white focus:outline-none focus:border-cyan-400"
               />
             </div>
-            {/* Avatar picker grid */}
             <div className="flex space-x-1.5 overflow-x-auto py-1">
               {AVATARS.map((av) => (
                 <button

@@ -4,7 +4,6 @@ import { Redis } from '@upstash/redis';
 
 const PORT = process.env.PORT || 8080;
 
-// Upstash Redis Client (optional if env vars set)
 const redis = (process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN)
   ? new Redis({
       url: process.env.UPSTASH_REDIS_REST_URL,
@@ -19,8 +18,6 @@ const server = createServer((req, res) => {
 
 const wss = new WebSocketServer({ server });
 
-// Memory Rooms Store
-// roomCode -> { code, hostId, players: Map<ws, { id, name, avatar, isHost }>, state: {} }
 const rooms = new Map();
 
 function generateRoomCode() {
@@ -38,14 +35,27 @@ async function persistRoomToRedis(code, roomData) {
     const payload = {
       code,
       hostId: roomData.hostId,
-      playerCount: roomData.players.size,
       state: roomData.state,
       updatedAt: Date.now()
     };
-    await redis.set(key, JSON.stringify(payload), { ex: 86400 }); // Auto expire after 24 hours
+    await redis.set(key, JSON.stringify(payload), { ex: 86400 });
   } catch (e) {
     console.warn('Redis sync warning:', e);
   }
+}
+
+async function loadRoomFromRedis(code) {
+  if (!redis) return null;
+  try {
+    const key = `wonglao:room:${code}`;
+    const raw = await redis.get(key);
+    if (raw) {
+      return typeof raw === 'string' ? JSON.parse(raw) : raw;
+    }
+  } catch (e) {
+    console.warn('Redis load error:', e);
+  }
+  return null;
 }
 
 function broadcastToRoom(roomCode, data, excludeWs = null) {
@@ -79,7 +89,7 @@ wss.on('connection', (ws) => {
   let currentRoomCode = null;
   let playerId = 'player_' + Math.random().toString(36).substring(2, 9);
 
-  ws.on('message', (messageRaw) => {
+  ws.on('message', async (messageRaw) => {
     try {
       const data = JSON.parse(messageRaw.toString());
       const { type, payload } = data;
@@ -91,7 +101,7 @@ wss.on('connection', (ws) => {
 
           const playerObj = {
             id: playerId,
-            name: payload.playerName || 'Host',
+            name: payload.playerName || 'Host เจ้ามือ',
             avatar: payload.playerAvatar || '🍻',
             isHost: true
           };
@@ -113,7 +123,7 @@ wss.on('connection', (ws) => {
           };
 
           rooms.set(code, roomData);
-          persistRoomToRedis(code, roomData);
+          await persistRoomToRedis(code, roomData);
 
           ws.send(
             JSON.stringify({
@@ -131,7 +141,21 @@ wss.on('connection', (ws) => {
 
         case 'JOIN_ROOM': {
           const targetCode = payload.roomCode?.toString().trim();
-          const room = rooms.get(targetCode);
+          let room = rooms.get(targetCode);
+
+          // If room not in memory, try to recover from Redis
+          if (!room && redis) {
+            const redisRoom = await loadRoomFromRedis(targetCode);
+            if (redisRoom) {
+              room = {
+                code: targetCode,
+                hostId: playerId, // Assign joiner as host if recovered
+                players: new Map(),
+                state: redisRoom.state || {}
+              };
+              rooms.set(targetCode, room);
+            }
+          }
 
           if (!room) {
             ws.send(
@@ -144,15 +168,21 @@ wss.on('connection', (ws) => {
           }
 
           currentRoomCode = targetCode;
+          const isFirstPlayer = room.players.size === 0;
+
           const playerObj = {
             id: playerId,
             name: payload.playerName || `สายตี้ #${room.players.size + 1}`,
             avatar: payload.playerAvatar || '🥳',
-            isHost: false
+            isHost: isFirstPlayer
           };
 
+          if (isFirstPlayer) {
+            room.hostId = playerId;
+          }
+
           room.players.set(ws, playerObj);
-          persistRoomToRedis(targetCode, room);
+          await persistRoomToRedis(targetCode, room);
 
           ws.send(
             JSON.stringify({
@@ -182,7 +212,7 @@ wss.on('connection', (ws) => {
           if (!room) return;
 
           room.state = { ...room.state, ...payload };
-          persistRoomToRedis(currentRoomCode, room);
+          await persistRoomToRedis(currentRoomCode, room);
 
           broadcastToRoom(currentRoomCode, {
             type: 'SYNC_GAME_STATE',
@@ -205,21 +235,35 @@ wss.on('connection', (ws) => {
     }
   });
 
-  ws.on('close', () => {
+  ws.on('close', async () => {
     if (currentRoomCode) {
       const room = rooms.get(currentRoomCode);
       if (room) {
-        const playerObj = room.players.get(ws);
+        const leavingPlayer = room.players.get(ws);
+        const wasHost = leavingPlayer?.isHost;
+
         room.players.delete(ws);
 
         if (room.players.size === 0) {
           rooms.delete(currentRoomCode);
         } else {
+          // Promote new host if host left
+          if (wasHost) {
+            const nextEntry = room.players.entries().next().value;
+            if (nextEntry) {
+              const [, nextPlayer] = nextEntry;
+              nextPlayer.isHost = true;
+              room.hostId = nextPlayer.id;
+            }
+          }
+
+          await persistRoomToRedis(currentRoomCode, room);
+
           broadcastToRoom(currentRoomCode, {
             type: 'PLAYER_LEFT',
             payload: {
               playerId,
-              playerName: playerObj?.name,
+              playerName: leavingPlayer?.name,
               players: getRoomPlayerList(currentRoomCode)
             }
           });
@@ -230,5 +274,5 @@ wss.on('connection', (ws) => {
 });
 
 server.listen(PORT, () => {
-  console.log(`🍻 WongLao WebSocket Server (Redis Ready) listening on port ${PORT}`);
+  console.log(`🍻 WongLao WebSocket Server (Host Migration & Redis Recovery Ready) listening on port ${PORT}`);
 });

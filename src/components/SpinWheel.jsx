@@ -1,6 +1,7 @@
-import React, { useRef, useState, useEffect } from 'react';
+import React, { useRef, useState, useEffect, useCallback } from 'react';
 import confetti from 'canvas-confetti';
 import { soundManager } from '../utils/audio';
+import { wsClient } from '../utils/websocket';
 import { RotateCw, Plus, Trash2, Trophy } from 'lucide-react';
 
 const DEFAULT_SLICES = [
@@ -27,12 +28,7 @@ export default function SpinWheel({ onSyncResult }) {
   const rotationRef = useRef(0);
   const spinAnimRef = useRef(null);
 
-  useEffect(() => {
-    localStorage.setItem('wonglao_custom_wheel', JSON.stringify(slices));
-    drawWheel(rotationRef.current);
-  }, [slices]);
-
-  const drawWheel = (rotationAngle) => {
+  const drawWheel = useCallback((rotationAngle) => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
@@ -41,12 +37,10 @@ export default function SpinWheel({ onSyncResult }) {
     const radius = center - 15;
 
     ctx.clearRect(0, 0, size, size);
-
     if (slices.length === 0) return;
 
     const anglePerSlice = (Math.PI * 2) / slices.length;
 
-    // Draw Wheel Slices
     slices.forEach((slice, i) => {
       const startAngle = rotationAngle + i * anglePerSlice;
       const endAngle = startAngle + anglePerSlice;
@@ -62,12 +56,10 @@ export default function SpinWheel({ onSyncResult }) {
       ctx.strokeStyle = '#0B0E14';
       ctx.stroke();
 
-      // Slice Neon Inner Border
       ctx.lineWidth = 1;
       ctx.strokeStyle = 'rgba(255,255,255,0.4)';
       ctx.stroke();
 
-      // Slice Text
       ctx.save();
       ctx.translate(center, center);
       ctx.rotate(startAngle + anglePerSlice / 2);
@@ -80,7 +72,6 @@ export default function SpinWheel({ onSyncResult }) {
       ctx.restore();
     });
 
-    // Outer Neon Ring Glow
     ctx.beginPath();
     ctx.arc(center, center, radius, 0, Math.PI * 2);
     ctx.lineWidth = 6;
@@ -90,7 +81,6 @@ export default function SpinWheel({ onSyncResult }) {
     ctx.stroke();
     ctx.shadowBlur = 0;
 
-    // Center Pin Hub
     ctx.beginPath();
     ctx.arc(center, center, 28, 0, Math.PI * 2);
     ctx.fillStyle = '#0B0E14';
@@ -99,39 +89,60 @@ export default function SpinWheel({ onSyncResult }) {
     ctx.strokeStyle = '#FF007A';
     ctx.stroke();
 
-    // Center Logo Text
     ctx.fillStyle = '#FFD700';
     ctx.font = 'bold 12px Kanit, sans-serif';
     ctx.textAlign = 'center';
     ctx.fillText('วงเหล้า', center, center + 4);
-  };
+  }, [slices]);
 
-  const spin = () => {
+  useEffect(() => {
+    localStorage.setItem('wonglao_custom_wheel', JSON.stringify(slices));
+    drawWheel(rotationRef.current);
+  }, [slices, drawWheel]);
+
+  // Listen for remote WebSocket spin action
+  useEffect(() => {
+    const unsubscribe = wsClient.subscribe((event) => {
+      if (event.type === 'SYNC_GAME_STATE' && event.payload.state?.wheelSpin) {
+        const { targetIndex, winnerText, isRemote } = event.payload.state.wheelSpin;
+        if (event.payload.senderId !== wsClient.playerId) {
+          triggerSpin(targetIndex, winnerText, true);
+        }
+      }
+    });
+    return unsubscribe;
+  }, [slices]);
+
+  const triggerSpin = (targetIdx = null, remoteWinnerText = null, isRemote = false) => {
     if (isSpinning || slices.length === 0) return;
     setIsSpinning(true);
     setWinner(null);
     soundManager.playClick();
 
-    const spinRotations = 5 + Math.random() * 5; // 5 to 10 full turns
-    const totalSpinAngle = spinRotations * Math.PI * 2 + Math.random() * Math.PI * 2;
-    const duration = 4500; // ms
+    const winIndex = targetIdx !== null ? targetIdx : Math.floor(Math.random() * slices.length);
+    const anglePerSlice = (Math.PI * 2) / slices.length;
+    const pointerAngle = (3 * Math.PI) / 2;
+    const targetSliceCenter = (winIndex + 0.5) * anglePerSlice;
+    let targetRotation = pointerAngle - targetSliceCenter;
+    
+    // Add extra 6 full rotations
+    const spinRotations = 6;
+    const totalSpinAngle = spinRotations * Math.PI * 2 + (targetRotation - (rotationRef.current % (Math.PI * 2)));
+
+    const duration = 4500;
     const startTime = performance.now();
     const startAngle = rotationRef.current;
-
     let lastTickSlice = -1;
 
     const animate = (currentTime) => {
       const elapsed = currentTime - startTime;
       const progress = Math.min(elapsed / duration, 1);
-      // Ease-out cubic formula
       const easeOut = 1 - Math.pow(1 - progress, 3);
       const currentAngle = startAngle + totalSpinAngle * easeOut;
       rotationRef.current = currentAngle % (Math.PI * 2);
 
       drawWheel(rotationRef.current);
 
-      // Play tick sound when passing slice boundaries
-      const anglePerSlice = (Math.PI * 2) / slices.length;
       const normalizedAngle = (2 * Math.PI - (rotationRef.current % (2 * Math.PI))) % (2 * Math.PI);
       const currentSliceIdx = Math.floor(normalizedAngle / anglePerSlice);
 
@@ -144,19 +155,19 @@ export default function SpinWheel({ onSyncResult }) {
         spinAnimRef.current = requestAnimationFrame(animate);
       } else {
         setIsSpinning(false);
-        // Calculate Winner (pointer is at top = 270 deg or -PI/2)
-        const pointerAngle = (3 * Math.PI) / 2;
-        const finalAngle = (pointerAngle - rotationRef.current) % (Math.PI * 2);
-        const normalizedFinal = finalAngle < 0 ? finalAngle + Math.PI * 2 : finalAngle;
-        const winIndex = Math.floor(normalizedFinal / anglePerSlice) % slices.length;
         const winningSlice = slices[winIndex];
-
         setWinner(winningSlice);
         soundManager.playWheelWin();
         confetti({ particleCount: 80, spread: 70, origin: { y: 0.6 } });
 
-        if (onSyncResult) {
-          onSyncResult(winningSlice.text);
+        if (!isRemote) {
+          wsClient.sendAction('SPIN_WHEEL', {
+            wheelSpin: { targetIndex: winIndex, winnerText: winningSlice.text, timestamp: Date.now() }
+          }, `หมุนวงล้อได้: ${winningSlice.text}`);
+
+          if (onSyncResult) {
+            onSyncResult(winningSlice.text);
+          }
         }
       }
     };
@@ -182,7 +193,6 @@ export default function SpinWheel({ onSyncResult }) {
       <div className="relative flex flex-col items-center">
         <div className="w-0 h-0 border-l-[14px] border-l-transparent border-r-[14px] border-r-transparent border-t-[24px] border-t-pink-500 z-20 drop-shadow-[0_0_10px_#FF007A]" />
         
-        {/* Canvas Wheel */}
         <canvas
           ref={canvasRef}
           width={340}
@@ -204,7 +214,7 @@ export default function SpinWheel({ onSyncResult }) {
 
       {/* Spin Button */}
       <button
-        onClick={spin}
+        onClick={() => triggerSpin()}
         disabled={isSpinning || slices.length === 0}
         className="w-full py-4 rounded-2xl font-black text-xl tracking-wider uppercase text-slate-950 bg-gradient-to-r from-cyan-400 via-teal-300 to-pink-500 shadow-[0_0_20px_rgba(0,242,254,0.6)] hover:shadow-[0_0_30px_rgba(255,0,122,0.8)] active:scale-95 transition-all disabled:opacity-50 flex items-center justify-center space-x-2"
       >
@@ -212,7 +222,7 @@ export default function SpinWheel({ onSyncResult }) {
         <span>{isSpinning ? 'กำลังหมุนวงล้อ...' : 'หมุนวงล้อสุ่ม 🎯'}</span>
       </button>
 
-      {/* Customize Slices Accordion */}
+      {/* Customize Slices */}
       <div className="w-full bg-slate-900/90 backdrop-blur-md rounded-2xl p-4 border border-slate-800 space-y-3">
         <h3 className="text-sm font-semibold text-cyan-400 flex items-center justify-between">
           <span>ปรับแต่งบทลงโทษในวงล้อ ({slices.length} รายการ)</span>

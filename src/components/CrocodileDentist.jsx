@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { soundManager } from '../utils/audio';
+import { wsClient } from '../utils/websocket';
 import confetti from 'canvas-confetti';
 import { Smile, RefreshCw, AlertTriangle } from 'lucide-react';
 
@@ -11,23 +12,63 @@ export default function CrocodileDentist({ onSyncResult }) {
   const [isSnapped, setIsSnapped] = useState(false);
   const [shaking, setShaking] = useState(false);
 
-  const resetGame = () => {
+  const resetGame = (isRemote = false) => {
     soundManager.playClick();
-    setTrapTooth(Math.floor(Math.random() * TEETH_COUNT));
+    const newTrap = Math.floor(Math.random() * TEETH_COUNT);
+    setTrapTooth(newTrap);
     setPressedTeeth([]);
     setIsSnapped(false);
     setShaking(false);
+
+    if (!isRemote && wsClient.roomCode) {
+      wsClient.sendAction('CROC_RESET', {
+        crocState: { trapTooth: newTrap, pressedTeeth: [], isSnapped: false }
+      }, 'ง้างปากจระเข้เริ่มตาใหม่ 🐊');
+    }
   };
 
   useEffect(() => {
     resetGame();
   }, []);
 
+  // Listen for WebSocket remote croc actions
+  useEffect(() => {
+    const unsubscribe = wsClient.subscribe((event) => {
+      if (event.type === 'SYNC_GAME_STATE' && event.payload.senderId !== wsClient.playerId) {
+        const state = event.payload.state;
+        if (state.crocToothPress) {
+          const { index, isTrap } = state.crocToothPress;
+          handleRemoteToothPress(index, isTrap);
+        } else if (state.crocState) {
+          setTrapTooth(state.crocState.trapTooth);
+          setPressedTeeth(state.crocState.pressedTeeth || []);
+          setIsSnapped(state.crocState.isSnapped || false);
+        }
+      }
+    });
+    return unsubscribe;
+  }, [trapTooth]);
+
+  const handleRemoteToothPress = (index, isTrap) => {
+    if (isTrap) {
+      soundManager.playCrocSnap();
+      setIsSnapped(true);
+      setShaking(true);
+      setPressedTeeth((prev) => [...prev, index]);
+      confetti({ particleCount: 60, spread: 60, origin: { y: 0.7 } });
+      setTimeout(() => setShaking(false), 600);
+    } else {
+      soundManager.playClick();
+      setPressedTeeth((prev) => [...prev, index]);
+    }
+  };
+
   const pressTooth = (index) => {
     if (isSnapped || pressedTeeth.includes(index)) return;
 
-    if (index === trapTooth) {
-      // Snapped!
+    const isTrap = index === trapTooth;
+
+    if (isTrap) {
       soundManager.playCrocSnap();
       setIsSnapped(true);
       setShaking(true);
@@ -35,15 +76,26 @@ export default function CrocodileDentist({ onSyncResult }) {
 
       confetti({ particleCount: 60, spread: 60, origin: { y: 0.7 } });
 
+      if (wsClient.roomCode) {
+        wsClient.sendAction('CROC_PRESS', {
+          crocToothPress: { index, isTrap: true }
+        }, 'โดนจระเข้งับนิ้ว! 🐊 ดื่ม 2 จิบ');
+      }
+
       if (onSyncResult) {
         onSyncResult('โดนจระเข้งับนิ้ว! ดื่ม 2 จิบ 🐊');
       }
 
       setTimeout(() => setShaking(false), 600);
     } else {
-      // Safe tooth
       soundManager.playClick();
       setPressedTeeth((prev) => [...prev, index]);
+
+      if (wsClient.roomCode) {
+        wsClient.sendAction('CROC_PRESS', {
+          crocToothPress: { index, isTrap: false }
+        }, `จิ้มฟันซี่ที่ ${index + 1} (รอดตัว)`);
+      }
     }
   };
 
@@ -65,20 +117,17 @@ export default function CrocodileDentist({ onSyncResult }) {
 
       {/* Crocodile Graphic Jaws */}
       <div className="relative w-64 h-56 flex flex-col items-center justify-center">
-        {/* Upper Jaw */}
         <div
           className={`w-56 h-28 bg-gradient-to-b from-emerald-600 to-emerald-800 rounded-t-full border-4 border-emerald-400 relative transition-transform duration-300 shadow-[0_0_20px_rgba(0,255,102,0.4)] ${
             isSnapped ? 'translate-y-12 rotate-2' : '-translate-y-4'
           }`}
         >
-          {/* Eyes */}
           <div className="absolute -top-5 left-10 w-8 h-8 bg-amber-400 rounded-full border-2 border-slate-900 flex items-center justify-center">
             <div className="w-3 h-5 bg-slate-950 rounded-full" />
           </div>
           <div className="absolute -top-5 right-10 w-8 h-8 bg-amber-400 rounded-full border-2 border-slate-900 flex items-center justify-center">
             <div className="w-3 h-5 bg-slate-950 rounded-full" />
           </div>
-          {/* Top Teeth */}
           <div className="absolute bottom-1 left-4 right-4 flex justify-between px-2">
             {[...Array(6)].map((_, idx) => (
               <div
@@ -89,7 +138,6 @@ export default function CrocodileDentist({ onSyncResult }) {
           </div>
         </div>
 
-        {/* Lower Jaw with Interactive Teeth */}
         <div className="w-56 h-24 bg-gradient-to-t from-emerald-700 to-emerald-900 rounded-b-full border-4 border-emerald-500 relative flex items-start justify-center pt-2 px-3">
           <div className="grid grid-cols-5 gap-2 w-full">
             {[...Array(TEETH_COUNT)].map((_, idx) => {
@@ -116,7 +164,6 @@ export default function CrocodileDentist({ onSyncResult }) {
         </div>
       </div>
 
-      {/* Result Status */}
       {isSnapped && (
         <div className="bg-red-950/90 border-2 border-red-500 rounded-2xl p-3 text-center text-white font-bold animate-bounce w-full shadow-[0_0_20px_rgba(239,68,68,0.7)]">
           <div className="flex items-center justify-center space-x-2 text-amber-300 text-base">
@@ -126,9 +173,8 @@ export default function CrocodileDentist({ onSyncResult }) {
         </div>
       )}
 
-      {/* Control Buttons */}
       <button
-        onClick={resetGame}
+        onClick={() => resetGame()}
         className="w-full py-3 bg-gradient-to-r from-emerald-500 to-teal-400 text-slate-950 font-black rounded-2xl shadow-[0_0_15px_rgba(0,255,102,0.4)] hover:shadow-[0_0_25px_rgba(0,255,102,0.6)] active:scale-95 transition flex items-center justify-center space-x-2"
       >
         <RefreshCw className="w-5 h-5" />

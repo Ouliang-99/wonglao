@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { soundManager } from '../utils/audio';
+import { wsClient } from '../utils/websocket';
 import confetti from 'canvas-confetti';
 import { Dices, RotateCw, Sparkles } from 'lucide-react';
 
@@ -36,11 +37,27 @@ export default function DiceRoller({ onSyncResult }) {
   const [isRolling, setIsRolling] = useState(false);
   const [ruleMessage, setRuleMessage] = useState('');
 
-  const rollDice = () => {
+  // Listen for WebSocket remote dice rolls
+  useEffect(() => {
+    const unsubscribe = wsClient.subscribe((event) => {
+      if (event.type === 'SYNC_GAME_STATE' && event.payload.state?.diceRoll) {
+        if (event.payload.senderId !== wsClient.playerId) {
+          const { diceValues: remoteValues, diceCount: remoteCount, ruleMsg } = event.payload.state.diceRoll;
+          triggerDiceRoll(remoteValues, remoteCount, ruleMsg, true);
+        }
+      }
+    });
+    return unsubscribe;
+  }, []);
+
+  const triggerDiceRoll = (targetValues = null, targetCount = null, remoteRuleMsg = null, isRemote = false) => {
     if (isRolling) return;
     setIsRolling(true);
     setRuleMessage('');
     soundManager.playDiceRoll();
+
+    const activeCount = targetCount !== null ? targetCount : diceCount;
+    if (targetCount !== null) setDiceCount(targetCount);
 
     let count = 0;
     const interval = setInterval(() => {
@@ -50,34 +67,45 @@ export default function DiceRoller({ onSyncResult }) {
       count++;
       if (count > 10) {
         clearInterval(interval);
-        const finalValues = Array.from({ length: diceCount }, () =>
-          Math.floor(Math.random() * 6) + 1
-        );
+        const finalValues = targetValues !== null
+          ? targetValues
+          : Array.from({ length: activeCount }, () => Math.floor(Math.random() * 6) + 1);
+
         setDiceValues(finalValues);
         setIsRolling(false);
 
-        // Check Party Rules
         const total = finalValues.reduce((a, b) => a + b, 0);
-        let msg = '';
-        if (diceCount === 2) {
-          if (finalValues[0] === finalValues[1]) {
-            msg = `แต้มเท่ากัน! (${finalValues[0]}-${finalValues[1]}) คนทอยสั่งใครก็ได้ดื่ม 1 จิบ 🥂`;
-            confetti({ particleCount: 50, spread: 50 });
-          } else if (total === 7 || total === 11) {
-            msg = `ออก 7 หรือ 11! คนทอยดื่ม 1 จิบ 🍻`;
-          } else if (total === 12) {
-            msg = `แจ็กพอต 12 แต้ม! ชนแก้วทั้งวง! 🎉`;
-            confetti({ particleCount: 90, spread: 70 });
+        let msg = remoteRuleMsg || '';
+
+        if (!remoteRuleMsg) {
+          if (activeCount === 2) {
+            if (finalValues[0] === finalValues[1]) {
+              msg = `แต้มเท่ากัน! (${finalValues[0]}-${finalValues[1]}) คนทอยสั่งใครก็ได้ดื่ม 1 จิบ 🥂`;
+              confetti({ particleCount: 50, spread: 50 });
+            } else if (total === 7 || total === 11) {
+              msg = `ออก 7 หรือ 11! คนทอยดื่ม 1 จิบ 🍻`;
+            } else if (total === 12) {
+              msg = `แจ็กพอต 12 แต้ม! ชนแก้วทั้งวง! 🎉`;
+              confetti({ particleCount: 90, spread: 70 });
+            } else {
+              msg = `แต้มรวม ${total}: ส่งไม้ต่อให้คนถัดไปทอย`;
+            }
           } else {
-            msg = `แต้มรวม ${total}: ส่งไม้ต่อให้คนถัดไปทอย`;
+            msg = `ได้ ${total} แต้ม!`;
           }
-        } else {
-          msg = `ได้ ${total} แต้ม!`;
         }
 
         setRuleMessage(msg);
-        if (onSyncResult) {
-          onSyncResult(`ทอยได้แต้มรวม ${total} (${msg})`);
+
+        if (!isRemote) {
+          if (wsClient.roomCode) {
+            wsClient.sendAction('DICE_ROLL', {
+              diceRoll: { diceValues: finalValues, diceCount: activeCount, ruleMsg: msg }
+            }, `ทอยลูกเต๋าได้แต้มรวม ${total}`);
+          }
+          if (onSyncResult) {
+            onSyncResult(`ทอยได้แต้มรวม ${total} (${msg})`);
+          }
         }
       }
     }, 80);
@@ -146,9 +174,8 @@ export default function DiceRoller({ onSyncResult }) {
         </div>
       )}
 
-      {/* Roll Button */}
       <button
-        onClick={rollDice}
+        onClick={() => triggerDiceRoll()}
         disabled={isRolling}
         className="w-full py-4 bg-gradient-to-r from-amber-400 via-yellow-300 to-amber-500 text-slate-950 font-black rounded-2xl text-lg shadow-[0_0_20px_rgba(255,215,0,0.5)] hover:shadow-[0_0_30px_rgba(255,215,0,0.8)] active:scale-95 transition disabled:opacity-50 flex items-center justify-center space-x-2"
       >

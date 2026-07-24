@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { getCustomDecks, saveCustomDecks, DECK_TYPES } from '../data/decks';
+import { saveCardToSupabase } from '../utils/supabase';
 import { soundManager } from '../utils/audio';
-import { Plus, Trash2, Download, Upload, Sparkles, CheckCircle } from 'lucide-react';
+import { Plus, Trash2, Download, Upload, Sparkles, CheckCircle, Database } from 'lucide-react';
 
 export default function CustomDeckBuilder() {
   const [customCards, setCustomCards] = useState([]);
@@ -10,12 +11,13 @@ export default function CustomDeckBuilder() {
   const [deckType, setDeckType] = useState(DECK_TYPES.TRUTH_OR_DARE);
   const [intensity, setIntensity] = useState('free');
   const [savedSuccess, setSavedSuccess] = useState(false);
+  const [savedToCloud, setSavedToCloud] = useState(false);
 
   useEffect(() => {
     setCustomCards(getCustomDecks());
   }, []);
 
-  const addCustomCard = () => {
+  const addCustomCard = async () => {
     if (!promptText.trim()) return;
     soundManager.playClick();
 
@@ -29,14 +31,23 @@ export default function CustomDeckBuilder() {
       isCustom: true
     };
 
+    // Save to LocalStorage
     const updated = [newCard, ...customCards];
     setCustomCards(updated);
     saveCustomDecks(updated);
 
+    // Save to Supabase Cloud Database if connected
+    const cloudRes = await saveCardToSupabase(newCard);
+    if (cloudRes) {
+      setSavedToCloud(true);
+    } else {
+      setSavedToCloud(false);
+    }
+
     setPromptText('');
     setPenaltyText('');
     setSavedSuccess(true);
-    setTimeout(() => setSavedSuccess(false), 2000);
+    setTimeout(() => setSavedSuccess(false), 2500);
   };
 
   const removeCard = (id) => {
@@ -84,7 +95,7 @@ export default function CustomDeckBuilder() {
           <span>สร้างการ์ด Custom Deck ✍️</span>
         </h2>
         <p className="text-xs text-slate-400 mt-1">
-          สร้างคำถาม/บทลงโทษเฉพาะแก๊งตัวเองไว้เล่นในวง!
+          สร้างคำถาม/บทลงโทษเฉพาะแก๊งตัวเอง Sync ลง Supabase Database!
         </p>
       </div>
 
@@ -155,7 +166,9 @@ export default function CustomDeckBuilder() {
         {savedSuccess && (
           <div className="text-center text-xs font-bold text-emerald-400 flex items-center justify-center space-x-1 animate-pulse">
             <CheckCircle className="w-4 h-4" />
-            <span>บันทึกการ์ดใหม่เรียบร้อย!</span>
+            <span>
+              บันทึกการ์ดเรียบร้อย! {savedToCloud ? '(แชร์ลง Supabase Cloud ☁️)' : ''}
+            </span>
           </div>
         )}
       </div>

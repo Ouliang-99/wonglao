@@ -1,15 +1,9 @@
-import React, { useState, useEffect } from 'react';
-import CardGame from './components/CardGame';
-import SpinWheel from './components/SpinWheel';
-import FingerChooser from './components/FingerChooser';
-import CrocodileDentist from './components/CrocodileDentist';
-import DiceRoller from './components/DiceRoller';
-import CustomDeckBuilder from './components/CustomDeckBuilder';
-import RoomModal from './components/RoomModal';
-import LegalModal from './components/LegalModal';
-import PartyPassModal from './components/PartyPassModal';
+import React, { useState, useEffect, useCallback, lazy, Suspense } from 'react';
 import { soundManager } from './utils/audio';
 import { wsClient } from './utils/websocket';
+import LegalModal from './components/LegalModal';
+import RoomModal from './components/RoomModal';
+import PartyPassModal from './components/PartyPassModal';
 import {
   Beer,
   Volume2,
@@ -26,14 +20,21 @@ import {
   Plus,
   LogIn,
   QrCode,
-  Radio,
-  CheckCircle2
+  Radio
 } from 'lucide-react';
+
+// Lazy loading components for bundle size optimization
+const CardGame = lazy(() => import('./components/CardGame'));
+const SpinWheel = lazy(() => import('./components/SpinWheel'));
+const FingerChooser = lazy(() => import('./components/FingerChooser'));
+const CrocodileDentist = lazy(() => import('./components/CrocodileDentist'));
+const DiceRoller = lazy(() => import('./components/DiceRoller'));
+const CustomDeckBuilder = lazy(() => import('./components/CustomDeckBuilder'));
 
 const AVATARS = ['🍻', '🦊', '🐲', '👑', '🍹', '🐯', '🔥', '🥳', '😎', '💃'];
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState('cards'); // 'cards' | 'wheel' | 'finger' | 'croc' | 'dice' | 'custom'
+  const [activeTab, setActiveTab] = useState('cards');
   const [isMuted, setIsMuted] = useState(false);
   const [isRoomModalOpen, setIsRoomModalOpen] = useState(false);
   const [isPassModalOpen, setIsPassModalOpen] = useState(false);
@@ -44,7 +45,6 @@ export default function App() {
   const [connectedPlayers, setConnectedPlayers] = useState(wsClient.players);
   const [roomCode, setRoomCode] = useState(wsClient.roomCode);
 
-  // Quick Home Join Code state
   const [homeInputCode, setHomeInputCode] = useState('');
   const [playerName, setPlayerName] = useState(() => localStorage.getItem('wonglao_player_name') || '');
   const [playerAvatar, setPlayerAvatar] = useState(() => localStorage.getItem('wonglao_player_avatar') || '🍻');
@@ -71,6 +71,11 @@ export default function App() {
         setTimeout(() => setSyncedBanner(''), 4000);
       } else if (type === 'PLAYER_LEFT') {
         setConnectedPlayers(payload.players);
+      } else if (type === 'ROOM_LEFT') {
+        setRoomCode(null);
+        setConnectedPlayers([]);
+        setSyncedBanner('ออกจากห้องเรียบร้อย');
+        setTimeout(() => setSyncedBanner(''), 3000);
       } else if (type === 'SYNC_GAME_STATE') {
         if (payload.state.activeTab && payload.state.activeTab !== activeTab) {
           setActiveTab(payload.state.activeTab);
@@ -84,7 +89,7 @@ export default function App() {
     });
 
     return unsubscribe;
-  }, []);
+  }, [activeTab]);
 
   const saveProfile = () => {
     localStorage.setItem('wonglao_player_name', playerName || 'สายตี้');
@@ -109,11 +114,11 @@ export default function App() {
     }
   };
 
-  const handleGameActionBroadcast = (message) => {
+  const handleGameActionBroadcast = useCallback((message) => {
     if (wsClient.roomCode) {
       wsClient.sendAction('GAME_EVENT', {}, message);
     }
-  };
+  }, []);
 
   const handleQuickCreateRoom = () => {
     soundManager.playClick();
@@ -138,7 +143,6 @@ export default function App() {
       {/* Top Navbar Header */}
       <header className="sticky top-0 z-40 bg-slate-950/80 backdrop-blur-md border-b border-slate-800/80 px-4 py-3">
         <div className="max-w-md mx-auto flex items-center justify-between">
-          {/* Logo Brand */}
           <div className="flex items-center space-x-2">
             <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-pink-500 to-cyan-400 p-0.5 shadow-[0_0_15px_rgba(255,0,122,0.6)]">
               <div className="w-full h-full bg-slate-950 rounded-[14px] flex items-center justify-center text-xl">
@@ -156,9 +160,7 @@ export default function App() {
             </div>
           </div>
 
-          {/* Action Header Icons */}
           <div className="flex items-center space-x-2">
-            {/* VIP Pass Button */}
             <button
               onClick={() => { soundManager.playClick(); setIsPassModalOpen(true); }}
               className={`px-2.5 py-1.5 rounded-xl text-xs font-bold flex items-center space-x-1 transition ${
@@ -171,7 +173,6 @@ export default function App() {
               <span className="hidden sm:inline">{isPremiumUnlocked ? 'VIP Active' : 'Pass 39฿'}</span>
             </button>
 
-            {/* Room Sync Button */}
             <button
               onClick={() => { soundManager.playClick(); setIsRoomModalOpen(true); }}
               className={`p-2 border rounded-xl transition relative flex items-center space-x-1 ${
@@ -187,7 +188,6 @@ export default function App() {
               )}
             </button>
 
-            {/* Mute Toggle */}
             <button
               onClick={toggleSound}
               className="p-2 bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-300 rounded-xl transition"
@@ -198,7 +198,6 @@ export default function App() {
         </div>
       </header>
 
-      {/* Synchronized Live WebSocket Banner */}
       {syncedBanner && (
         <div className="bg-gradient-to-r from-cyan-950 via-slate-900 to-pink-950 border-b border-cyan-500/50 p-2.5 text-center text-xs font-bold text-cyan-300 animate-pulse flex items-center justify-center space-x-2">
           <Radio className="w-4 h-4 text-cyan-400 animate-spin" />
@@ -208,7 +207,7 @@ export default function App() {
 
       {/* Main Content Area */}
       <main className="max-w-md mx-auto w-full px-4 pt-3 flex-1 space-y-4">
-        {/* PROMINENT ROOM CREATION & JOINING BANNER CARD */}
+        {/* ROOM BANNER CARD */}
         <div className="bg-gradient-to-br from-slate-900 via-slate-950 to-slate-900 p-4 rounded-3xl border border-slate-800 shadow-[0_0_30px_rgba(0,242,254,0.15)] space-y-3">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-2">
@@ -232,7 +231,6 @@ export default function App() {
             )}
           </div>
 
-          {/* Quick Profile Setup */}
           <div className="flex space-x-2 bg-slate-950/80 p-2 rounded-2xl border border-slate-800/80">
             <button
               onClick={() => {
@@ -253,7 +251,6 @@ export default function App() {
             />
           </div>
 
-          {/* Room Status or Action Buttons */}
           {roomCode ? (
             <div className="bg-emerald-950/40 border border-emerald-500/40 p-3 rounded-2xl flex items-center justify-between">
               <div className="flex items-center space-x-2">
@@ -376,33 +373,38 @@ export default function App() {
           </button>
         </div>
 
-        {/* Tab Views */}
-        {activeTab === 'cards' && (
-          <CardGame
-            isPremiumUnlocked={isPremiumUnlocked}
-            onOpenPassModal={() => setIsPassModalOpen(true)}
-            onSyncCard={(card) => handleGameActionBroadcast(`จั่วการ์ด: ${card.prompt}`)}
-          />
-        )}
+        {/* Tab Views with Suspense */}
+        <Suspense fallback={
+          <div className="w-full h-64 flex items-center justify-center text-cyan-400 text-sm font-bold animate-pulse">
+            กำลังโหลดเกม... 🍻
+          </div>
+        }>
+          {activeTab === 'cards' && (
+            <CardGame
+              isPremiumUnlocked={isPremiumUnlocked}
+              onOpenPassModal={() => setIsPassModalOpen(true)}
+              onSyncCard={(card) => handleGameActionBroadcast(`จั่วการ์ด: ${card.prompt}`)}
+            />
+          )}
 
-        {activeTab === 'wheel' && (
-          <SpinWheel onSyncResult={(res) => handleGameActionBroadcast(res)} />
-        )}
+          {activeTab === 'wheel' && (
+            <SpinWheel onSyncResult={(res) => handleGameActionBroadcast(res)} />
+          )}
 
-        {activeTab === 'finger' && <FingerChooser />}
+          {activeTab === 'finger' && <FingerChooser />}
 
-        {activeTab === 'croc' && (
-          <CrocodileDentist onSyncResult={(res) => handleGameActionBroadcast(res)} />
-        )}
+          {activeTab === 'croc' && (
+            <CrocodileDentist onSyncResult={(res) => handleGameActionBroadcast(res)} />
+          )}
 
-        {activeTab === 'dice' && (
-          <DiceRoller onSyncResult={(res) => handleGameActionBroadcast(res)} />
-        )}
+          {activeTab === 'dice' && (
+            <DiceRoller onSyncResult={(res) => handleGameActionBroadcast(res)} />
+          )}
 
-        {activeTab === 'custom' && <CustomDeckBuilder />}
+          {activeTab === 'custom' && <CustomDeckBuilder />}
+        </Suspense>
       </main>
 
-      {/* Footer Legal & Safety Sticky Note */}
       <footer className="mt-8 text-center space-y-2">
         <div className="flex items-center justify-center space-x-2 text-[11px] text-slate-500">
           <Shield className="w-3.5 h-3.5 text-emerald-400" />
@@ -413,9 +415,12 @@ export default function App() {
         </p>
       </footer>
 
-      {/* App Modals */}
       <LegalModal />
-      <RoomModal isOpen={isRoomModalOpen} onClose={() => setIsRoomModalOpen(false)} />
+      <RoomModal
+        isOpen={isRoomModalOpen}
+        onClose={() => setIsRoomModalOpen(false)}
+        initialRoomCode={homeInputCode}
+      />
       <PartyPassModal
         isOpen={isPassModalOpen}
         onClose={() => setIsPassModalOpen(false)}

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { soundManager } from '../utils/audio';
 import confetti from 'canvas-confetti';
 import { Flame, Fingerprint, RefreshCw } from 'lucide-react';
@@ -58,9 +58,8 @@ export default function FingerChooser() {
     setTouches(remaining);
   };
 
-  // Mouse click fallback for desktop testing
   const handleMouseDown = (e) => {
-    if ('ontouchstart' in window) return; // ignore mouse if touch device
+    if ('ontouchstart' in window) return;
     if (chosenIdx !== null) return;
 
     soundManager.playClick();
@@ -81,46 +80,48 @@ export default function FingerChooser() {
     }
   };
 
-  // Auto trigger countdown when touches >= 2
+  const startCountdown = useCallback(() => {
+    if (isChoosing || chosenIdx !== null) return;
+    setIsChoosing(true);
+    let count = 3;
+    setCountdown(count);
+
+    timerRef.current = setInterval(() => {
+      count -= 1;
+      if (count > 0) {
+        setCountdown(count);
+        soundManager.playSpinTick();
+      } else {
+        clearInterval(timerRef.current);
+        setCountdown(null);
+        const currentTouches = touchesRef.current;
+        if (currentTouches.length > 0) {
+          const randomIndex = Math.floor(Math.random() * currentTouches.length);
+          setChosenIdx(randomIndex);
+          soundManager.playBombExplode();
+          confetti({
+            particleCount: 100,
+            spread: 90,
+            origin: {
+              x: currentTouches[randomIndex].x / window.innerWidth,
+              y: currentTouches[randomIndex].y / window.innerHeight
+            }
+          });
+        }
+        setIsChoosing(false);
+      }
+    }, 1000);
+  }, [isChoosing, chosenIdx]);
+
   useEffect(() => {
     if (touches.length >= 2 && !isChoosing && chosenIdx === null) {
-      setIsChoosing(true);
-      let count = 3;
-      setCountdown(count);
-
-      timerRef.current = setInterval(() => {
-        count -= 1;
-        if (count > 0) {
-          setCountdown(count);
-          soundManager.playSpinTick();
-        } else {
-          clearInterval(timerRef.current);
-          setCountdown(null);
-          // Pick random loser finger
-          const currentTouches = touchesRef.current;
-          if (currentTouches.length > 0) {
-            const randomIndex = Math.floor(Math.random() * currentTouches.length);
-            setChosenIdx(randomIndex);
-            soundManager.playBombExplode();
-            confetti({
-              particleCount: 100,
-              spread: 90,
-              origin: {
-                x: currentTouches[randomIndex].x / window.innerWidth,
-                y: currentTouches[randomIndex].y / window.innerHeight
-              }
-            });
-          }
-          setIsChoosing(false);
-        }
-      }, 1000);
+      startCountdown();
     } else if (touches.length < 2 && isChoosing) {
-      // Cancel countdown if fingers lifted
-      clearInterval(timerRef.current);
+      if (timerRef.current) clearInterval(timerRef.current);
       setIsChoosing(false);
       setCountdown(null);
     }
-  }, [touches.length]);
+  }, [touches.length, isChoosing, chosenIdx, startCountdown]);
 
   const resetGame = () => {
     if (timerRef.current) clearInterval(timerRef.current);
@@ -138,7 +139,6 @@ export default function FingerChooser() {
       onMouseDown={handleMouseDown}
       className="relative w-full h-[520px] bg-slate-950/90 rounded-3xl border border-slate-800 overflow-hidden flex flex-col items-center justify-between p-6 select-none touch-none shadow-[0_0_30px_rgba(255,0,122,0.15)]"
     >
-      {/* Header Info */}
       <div className="z-10 text-center pointer-events-none">
         <h2 className="text-xl font-black text-transparent bg-clip-text bg-gradient-to-r from-pink-400 to-cyan-400 flex items-center justify-center space-x-2">
           <Fingerprint className="w-6 h-6 text-pink-500 animate-pulse" />
@@ -157,7 +157,6 @@ export default function FingerChooser() {
         </p>
       </div>
 
-      {/* Render Finger Touch Rings */}
       {touches.map((t, idx) => {
         const isChosen = chosenIdx === idx;
         return (
@@ -168,7 +167,6 @@ export default function FingerChooser() {
               isChosen ? 'w-32 h-32 animate-ping bg-red-600/80 z-30' : 'w-24 h-24'
             }`}
           >
-            {/* Outer Glowing Ring */}
             <div
               className={`w-full h-full rounded-full border-4 border-dashed animate-spin ${
                 isChosen ? 'border-amber-300' : ''
@@ -178,7 +176,6 @@ export default function FingerChooser() {
                 boxShadow: `0 0 25px ${isChosen ? '#FF0000' : t.color}`
               }}
             />
-            {/* Core Pulse */}
             <div
               className={`absolute w-12 h-12 rounded-full flex items-center justify-center text-xs font-bold text-slate-950 ${
                 isChosen ? 'bg-amber-400 scale-125' : 'bg-white'
@@ -190,7 +187,6 @@ export default function FingerChooser() {
         );
       })}
 
-      {/* Result Message */}
       {chosenIdx !== null && touches[chosenIdx] && (
         <div className="z-20 bg-red-950/90 border-2 border-red-500 rounded-2xl p-4 text-center text-white font-bold animate-bounce shadow-[0_0_30px_rgba(239,68,68,0.8)]">
           <div className="flex items-center justify-center space-x-1 text-amber-300 text-lg">
@@ -201,7 +197,6 @@ export default function FingerChooser() {
         </div>
       )}
 
-      {/* Footer Controls */}
       <div className="z-10 w-full flex justify-between items-center text-xs text-slate-400">
         <span>นิ้วบนจอ: {touches.length}/6</span>
         <button
