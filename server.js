@@ -1,7 +1,17 @@
 import { WebSocketServer, WebSocket } from 'ws';
 import { createServer } from 'http';
+import { Redis } from '@upstash/redis';
 
 const PORT = process.env.PORT || 8080;
+
+// Upstash Redis Client (optional if env vars set)
+const redis = (process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN)
+  ? new Redis({
+      url: process.env.UPSTASH_REDIS_REST_URL,
+      token: process.env.UPSTASH_REDIS_REST_TOKEN
+    })
+  : null;
+
 const server = createServer((req, res) => {
   res.writeHead(200, { 'Content-Type': 'text/plain; charset=utf-8' });
   res.end('🍻 WongLao Party Hub WebSocket Server is Running!');
@@ -19,6 +29,23 @@ function generateRoomCode() {
     code = Math.floor(1000 + Math.random() * 9000).toString();
   } while (rooms.has(code));
   return code;
+}
+
+async function persistRoomToRedis(code, roomData) {
+  if (!redis) return;
+  try {
+    const key = `wonglao:room:${code}`;
+    const payload = {
+      code,
+      hostId: roomData.hostId,
+      playerCount: roomData.players.size,
+      state: roomData.state,
+      updatedAt: Date.now()
+    };
+    await redis.set(key, JSON.stringify(payload), { ex: 86400 }); // Auto expire after 24 hours
+  } catch (e) {
+    console.warn('Redis sync warning:', e);
+  }
 }
 
 function broadcastToRoom(roomCode, data, excludeWs = null) {
@@ -72,7 +99,7 @@ wss.on('connection', (ws) => {
           const playersMap = new Map();
           playersMap.set(ws, playerObj);
 
-          rooms.set(code, {
+          const roomData = {
             code,
             hostId: playerId,
             players: playersMap,
@@ -83,7 +110,10 @@ wss.on('connection', (ws) => {
               crocTooth: null,
               diceResult: null
             }
-          });
+          };
+
+          rooms.set(code, roomData);
+          persistRoomToRedis(code, roomData);
 
           ws.send(
             JSON.stringify({
@@ -92,7 +122,7 @@ wss.on('connection', (ws) => {
                 roomCode: code,
                 playerId,
                 players: getRoomPlayerList(code),
-                gameState: rooms.get(code).state
+                gameState: roomData.state
               }
             })
           );
@@ -122,8 +152,8 @@ wss.on('connection', (ws) => {
           };
 
           room.players.set(ws, playerObj);
+          persistRoomToRedis(targetCode, room);
 
-          // Confirm joining to this player
           ws.send(
             JSON.stringify({
               type: 'ROOM_JOINED',
@@ -136,7 +166,6 @@ wss.on('connection', (ws) => {
             })
           );
 
-          // Notify everyone in room about new player joining
           broadcastToRoom(targetCode, {
             type: 'PLAYER_JOINED',
             payload: {
@@ -152,10 +181,9 @@ wss.on('connection', (ws) => {
           const room = rooms.get(currentRoomCode);
           if (!room) return;
 
-          // Merge room state
           room.state = { ...room.state, ...payload };
+          persistRoomToRedis(currentRoomCode, room);
 
-          // Broadcast state update to ALL screens in the room
           broadcastToRoom(currentRoomCode, {
             type: 'SYNC_GAME_STATE',
             payload: {
@@ -164,19 +192,6 @@ wss.on('connection', (ws) => {
               actionType: payload.actionType,
               state: room.state,
               customMessage: payload.customMessage
-            }
-          });
-          break;
-        }
-
-        case 'BUZZ_PLAYER': {
-          if (!currentRoomCode) return;
-          broadcastToRoom(currentRoomCode, {
-            type: 'PLAYER_BUZZED',
-            payload: {
-              fromPlayer: room.players.get(ws)?.name || 'เพื่อนในวง',
-              targetPlayerId: payload.targetPlayerId,
-              message: payload.message || 'ชนแก้ว! 🍻'
             }
           });
           break;
@@ -215,5 +230,5 @@ wss.on('connection', (ws) => {
 });
 
 server.listen(PORT, () => {
-  console.log(`🍻 WongLao WebSocket Server listening on port ${PORT}`);
+  console.log(`🍻 WongLao WebSocket Server (Redis Ready) listening on port ${PORT}`);
 });
