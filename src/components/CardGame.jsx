@@ -4,7 +4,7 @@ import { soundManager } from '../utils/audio';
 import { wsClient } from '../utils/websocket';
 import { DECK_TYPES, INTENSITY_LEVELS, INITIAL_DECKS, getCustomDecks } from '../data/decks';
 import { fetchAllCardsFromSupabase } from '../utils/supabase';
-import { Sparkles, ChevronRight, Lock, Flame, ShieldAlert, Award, Database, UserCheck, Eye, Zap } from 'lucide-react';
+import { Sparkles, ChevronRight, Lock, Flame, ShieldAlert, Award, Database, Eye, Zap } from 'lucide-react';
 import confetti from 'canvas-confetti';
 
 export default function CardGame({ isPremiumUnlocked, onOpenPassModal, roomCode, players = [], isHost = false }) {
@@ -15,10 +15,10 @@ export default function CardGame({ isPremiumUnlocked, onOpenPassModal, roomCode,
   const [isFlipped, setIsFlipped] = useState(false);
   const [penaltyPoints, setPenaltyPoints] = useState(0);
   const [isDatabaseLoaded, setIsDatabaseLoaded] = useState(false);
-  const [currentTurnIndex, setCurrentTurnIndex] = useState(0);
-  const [remoteCard, setRemoteCard] = useState(null);
+  const [currentTurnIndex, setCurrentTurnIndex] = useState(wsClient.gameState?.turnIndex || 0);
+  const [remoteCard, setRemoteCard] = useState(wsClient.gameState?.syncedCard || null);
 
-  // Load and filter decks
+  // Load and filter decks with Host Initial Sync
   useEffect(() => {
     async function loadDecks() {
       let combined = [];
@@ -48,10 +48,25 @@ export default function CardGame({ isPremiumUnlocked, onOpenPassModal, roomCode,
       setCards(shuffled);
       setCurrentIndex(0);
       setIsFlipped(false);
+
+      // Room Multiplayer Initial Sync
+      if (wsClient.roomCode && shuffled.length > 0) {
+        if (wsClient.gameState?.syncedCard) {
+          setRemoteCard(wsClient.gameState.syncedCard);
+        } else if (wsClient.isHost || isHost) {
+          const initialCard = shuffled[0];
+          setRemoteCard(initialCard);
+          wsClient.sendAction(
+            'CARD_DRAW',
+            { syncedCard: initialCard, turnIndex: 0 },
+            `การ์ดใบแรกของวง: ${initialCard.prompt}`
+          );
+        }
+      }
     }
 
     loadDecks();
-  }, [selectedDeckType, selectedIntensity]);
+  }, [selectedDeckType, selectedIntensity, roomCode, isHost]);
 
   // Subscribe to WebSocket Game State Sync
   useEffect(() => {
@@ -70,7 +85,7 @@ export default function CardGame({ isPremiumUnlocked, onOpenPassModal, roomCode,
     return unsubscribe;
   }, []);
 
-  const currentCard = remoteCard || cards[currentIndex];
+  const currentCard = remoteCard || (cards.length > 0 ? cards[currentIndex] : null);
   const turnPlayer = players.length > 0 ? players[currentTurnIndex % players.length] : null;
   const isMyTurn = turnPlayer && turnPlayer.id === wsClient.playerId;
 
@@ -80,7 +95,7 @@ export default function CardGame({ isPremiumUnlocked, onOpenPassModal, roomCode,
 
     const nextCardIdx = (currentIndex + 1) % (cards.length || 1);
     const nextTurnIdx = players.length > 0 ? (currentTurnIndex + 1) % players.length : 0;
-    const drawnCard = cards[nextCardIdx];
+    const drawnCard = cards[nextCardIdx] || cards[0];
 
     setCurrentIndex(nextCardIdx);
     setCurrentTurnIndex(nextTurnIdx);
@@ -234,7 +249,7 @@ export default function CardGame({ isPremiumUnlocked, onOpenPassModal, roomCode,
         <AnimatePresence mode="wait">
           {currentCard ? (
             <motion.div
-              key={currentCard.id + currentIndex}
+              key={(currentCard.id || 'card') + currentIndex}
               initial={{ rotateY: 90, opacity: 0, scale: 0.9 }}
               animate={{ rotateY: 0, opacity: 1, scale: 1 }}
               exit={{ rotateY: -90, opacity: 0, scale: 0.9 }}
