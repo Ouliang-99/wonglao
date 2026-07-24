@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { soundManager } from '../utils/audio';
 import { DECK_TYPES, INTENSITY_LEVELS, INITIAL_DECKS, getCustomDecks } from '../data/decks';
-import { Sparkles, ChevronRight, Lock, Flame, ShieldAlert, Award, RefreshCw } from 'lucide-react';
+import { fetchAllCardsFromSupabase } from '../utils/supabase';
+import { Sparkles, ChevronRight, Lock, Flame, ShieldAlert, Award, Database } from 'lucide-react';
 import confetti from 'canvas-confetti';
 
 export default function CardGame({ isPremiumUnlocked, onOpenPassModal, onSyncCard }) {
@@ -12,21 +13,42 @@ export default function CardGame({ isPremiumUnlocked, onOpenPassModal, onSyncCar
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isFlipped, setIsFlipped] = useState(false);
   const [penaltyPoints, setPenaltyPoints] = useState(0);
+  const [isDatabaseLoaded, setIsDatabaseLoaded] = useState(false);
 
-  // Load and filter decks
+  // Load and filter decks (from Supabase Database or Local fallback)
   useEffect(() => {
-    const customDecks = getCustomDecks();
-    const allAvailable = [...INITIAL_DECKS, ...customDecks];
+    async function loadDecks() {
+      let combined = [];
+      const remoteCards = await fetchAllCardsFromSupabase();
 
-    const filtered = allAvailable.filter(
-      (c) => c.deckType === selectedDeckType && c.intensity === selectedIntensity
-    );
+      if (remoteCards && remoteCards.length > 0) {
+        setIsDatabaseLoaded(true);
+        combined = remoteCards.map((c) => ({
+          id: c.id,
+          deckType: c.deck_type,
+          type: c.type || 'truth',
+          intensity: c.intensity,
+          prompt: c.prompt,
+          penalty: c.penalty
+        }));
+      } else {
+        // Fallback to local default decks
+        setIsDatabaseLoaded(false);
+        const customDecks = getCustomDecks();
+        combined = [...INITIAL_DECKS, ...customDecks];
+      }
 
-    // Shuffle cards
-    const shuffled = [...filtered].sort(() => Math.random() - 0.5);
-    setCards(shuffled);
-    setCurrentIndex(0);
-    setIsFlipped(false);
+      const filtered = combined.filter(
+        (c) => c.deckType === selectedDeckType && c.intensity === selectedIntensity
+      );
+
+      const shuffled = [...filtered].sort(() => Math.random() - 0.5);
+      setCards(shuffled);
+      setCurrentIndex(0);
+      setIsFlipped(false);
+    }
+
+    loadDecks();
   }, [selectedDeckType, selectedIntensity]);
 
   const currentCard = cards[currentIndex];
@@ -61,7 +83,16 @@ export default function CardGame({ isPremiumUnlocked, onOpenPassModal, onSyncCar
   };
 
   return (
-    <div className="w-full max-w-md mx-auto flex flex-col space-y-5 p-2">
+    <div className="w-full max-w-md mx-auto flex flex-col space-y-4 p-2">
+      {/* DB Status Badge Indicator */}
+      <div className="flex items-center justify-between px-2 text-[11px] font-bold text-slate-400">
+        <span className="flex items-center space-x-1">
+          <Database className={`w-3.5 h-3.5 ${isDatabaseLoaded ? 'text-emerald-400' : 'text-amber-400'}`} />
+          <span>คลังการ์ด: {isDatabaseLoaded ? 'Supabase Live DB 🟢' : 'Local Offline Mode 🟡'}</span>
+        </span>
+        <span>คำถามในหมวดนี้ {cards.length} ใบ</span>
+      </div>
+
       {/* Deck Type Tabs */}
       <div className="grid grid-cols-3 gap-1.5 bg-slate-950/80 p-1.5 rounded-2xl border border-slate-800 backdrop-blur-md">
         <button
