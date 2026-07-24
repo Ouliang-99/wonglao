@@ -25,7 +25,8 @@ class WongLaoWebSocketClient {
       return `${protocol}//${window.location.hostname}:8080`;
     }
 
-    return 'wss://wonglao-server.onrender.com';
+    // Production Render WebSocket Server URL
+    return 'wss://wonglao.onrender.com';
   }
 
   connect() {
@@ -93,7 +94,6 @@ class WongLaoWebSocketClient {
       case 'PLAYER_JOINED':
       case 'PLAYER_LEFT':
         this.players = payload.players;
-        // Check if I became the host
         if (payload.players) {
           const me = payload.players.find((p) => p.id === this.playerId);
           if (me && me.isHost) {
