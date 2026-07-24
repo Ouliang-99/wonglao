@@ -6,11 +6,18 @@ import { Smile, RefreshCw, AlertTriangle } from 'lucide-react';
 
 const TEETH_COUNT = 10;
 
-export default function CrocodileDentist({ onSyncResult }) {
+export default function CrocodileDentist({ onSyncResult, roomIntensity = 'free' }) {
   const [trapTooth, setTrapTooth] = useState(0);
   const [pressedTeeth, setPressedTeeth] = useState([]);
   const [isSnapped, setIsSnapped] = useState(false);
   const [shaking, setShaking] = useState(false);
+
+  const getPenaltyText = () => {
+    if (roomIntensity === 'spicy') return 'ดื่ม 5 ยก';
+    if (roomIntensity === 'extreme') return 'ดื่ม 9 ยก';
+    if (roomIntensity === 'custom') return 'ดื่ม 10 ยก';
+    return 'ดื่ม 2 ยก';
+  };
 
   const resetGame = (isRemote = false) => {
     soundManager.playClick();
@@ -79,11 +86,11 @@ export default function CrocodileDentist({ onSyncResult }) {
       if (wsClient.roomCode) {
         wsClient.sendAction('CROC_PRESS', {
           crocToothPress: { index, isTrap: true }
-        }, 'โดนจระเข้งับนิ้ว! 🐊 ดื่ม 2 จิบ');
+        }, `โดนจระเข้งับนิ้ว! 🐊 ${getPenaltyText()}`);
       }
 
       if (onSyncResult) {
-        onSyncResult('โดนจระเข้งับนิ้ว! ดื่ม 2 จิบ 🐊');
+        onSyncResult(`โดนจระเข้งับนิ้ว! ${getPenaltyText()} 🐊`);
       }
 
       setTimeout(() => setShaking(false), 600);
@@ -111,7 +118,7 @@ export default function CrocodileDentist({ onSyncResult }) {
           <span>จระเข้งับนิ้ว 🐊</span>
         </h2>
         <p className="text-xs text-slate-400 mt-1">
-          ผลัดกันจิ้มฟันคนละ 1 ซี่... ซี่ไหนงับ ดื่ม 2 จิบ!
+          ผลัดกันจิ้มฟันคนละ 1 ซี่... ซี่ไหนงับ {getPenaltyText()}!
         </p>
       </div>
 
@@ -168,7 +175,7 @@ export default function CrocodileDentist({ onSyncResult }) {
         <div className="bg-red-950/90 border-2 border-red-500 rounded-2xl p-3 text-center text-white font-bold animate-bounce w-full shadow-[0_0_20px_rgba(239,68,68,0.7)]">
           <div className="flex items-center justify-center space-x-2 text-amber-300 text-base">
             <AlertTriangle className="w-5 h-5 text-red-500" />
-            <span>โดนงับแล้ว! ดื่ม 2 จิบ 🍻</span>
+            <span>โดนงับแล้ว! ดื่ม 2 ยก 🍻</span>
           </div>
         </div>
       )}

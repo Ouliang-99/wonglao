@@ -193,7 +193,7 @@ export default function FingerChooser() {
             <Flame className="w-5 h-5 text-red-500" />
             <span>นิ้วที่ {chosenIdx + 1} โดนลงโทษ!</span>
           </div>
-          <p className="text-xs text-red-200 mt-1">ดื่ม 1-2 จิบ หรือทำภารกิจในวง!</p>
+          <p className="text-xs text-red-200 mt-1">ดื่ม 1 ยก หรือทำภารกิจในวง!</p>
         </div>
       )}
 

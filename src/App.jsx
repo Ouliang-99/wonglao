@@ -15,6 +15,8 @@ const CrocodileDentist = lazy(() => import('./components/CrocodileDentist'));
 const DiceRoller = lazy(() => import('./components/DiceRoller'));
 const CustomDeckBuilder = lazy(() => import('./components/CustomDeckBuilder'));
 
+import { INTENSITY_LEVELS } from './data/decks';
+
 export default function App() {
   const [activeTab, setActiveTab] = useState(wsClient.gameState.activeTab || null);
   const [isMuted, setIsMuted] = useState(false);
@@ -26,6 +28,7 @@ export default function App() {
   const [connectedPlayers, setConnectedPlayers] = useState(wsClient.players);
   const [roomCode, setRoomCode] = useState(wsClient.roomCode);
   const [isHost, setIsHost] = useState(wsClient.isHost);
+  const [roomIntensity, setRoomIntensity] = useState(wsClient.gameState.roomIntensity || 'free');
   const [stats, setStats] = useState([]);
   const [syncedBanner, setSyncedBanner] = useState('');
   const [homeInputCode, setHomeInputCode] = useState('');
@@ -46,7 +49,10 @@ export default function App() {
         setRoomCode(payload.roomCode);
         setConnectedPlayers(payload.players || []);
         setStats(payload.gameState?.stats || []);
-        setActiveTab(payload.gameState?.activeTab || null);
+        // Always reset to lobby — never jump straight into a game on room create/join
+        setActiveTab(null);
+        setIsPickerOpen(false);
+        if (payload.gameState?.roomIntensity) setRoomIntensity(payload.gameState.roomIntensity);
         setIsRoomModalOpen(false);
         soundManager.playWheelWin();
       } else if (type === 'PLAYER_JOINED' || type === 'PLAYER_UPDATED') {
@@ -71,6 +77,7 @@ export default function App() {
       } else if (type === 'SYNC_GAME_STATE') {
         const nextState = payload.state || {};
         if (nextState.activeTab !== undefined) setActiveTab(nextState.activeTab);
+        if (nextState.roomIntensity !== undefined) setRoomIntensity(nextState.roomIntensity);
         if (nextState.stats) setStats(nextState.stats);
         if (payload.customMessage) {
           setSyncedBanner(`${payload.senderName}: ${payload.customMessage}`);
@@ -106,7 +113,6 @@ export default function App() {
 
   const createRoom = () => {
     soundManager.playClick();
-    wsClient.createRoom(getOrSaveProfile(), playerAvatar);
     setIsRoomModalOpen(true);
   };
 
@@ -115,6 +121,22 @@ export default function App() {
     soundManager.playClick();
     wsClient.joinRoom(homeInputCode.trim(), getOrSaveProfile(), playerAvatar);
     setIsRoomModalOpen(true);
+  };
+
+  const handleSelectIntensity = (intensityKey) => {
+    if (wsClient.roomCode && !isHost && !wsClient.isHost) return;
+    const levelInfo = Object.values(INTENSITY_LEVELS).find((lvl) => lvl.id === intensityKey);
+    if (levelInfo && levelInfo.isPremium && !isPremiumUnlocked) {
+      soundManager.playClick();
+      setIsPassModalOpen(true);
+      return;
+    }
+
+    soundManager.playClick();
+    setRoomIntensity(intensityKey);
+    if (wsClient.roomCode) {
+      wsClient.sendAction('ROOM_INTENSITY_CHANGE', { roomIntensity: intensityKey }, `เปลี่ยนระดับความห้าวเป็น ${levelInfo?.name || intensityKey}`);
+    }
   };
 
   const selectGame = (game) => {
@@ -140,6 +162,7 @@ export default function App() {
           roomCode={roomCode}
           players={connectedPlayers}
           isHost={isHost}
+          roomIntensity={roomIntensity}
         />
       )}
       {game === 'wheel' && <SpinWheel onSyncResult={(result) => wsClient.sendAction('GAME_EVENT', {}, result)} />}
@@ -162,46 +185,57 @@ export default function App() {
         </div>
       )}
 
-      <header className="sticky top-0 z-40 border-b border-slate-800/80 bg-slate-950/80 px-4 py-3 backdrop-blur-md">
-        <div className="mx-auto flex max-w-md items-center justify-between">
+      {/* Header */}
+      <header className="sticky top-0 z-40 border-b border-slate-800 bg-[#0B0E14]/80 backdrop-blur-md">
+        <div className="mx-auto flex max-w-md items-center justify-between px-4 py-3">
           <div className="flex items-center gap-2">
-            <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-tr from-pink-500 to-cyan-400 text-xl">🍻</div>
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-pink-500 via-purple-500 to-cyan-400 text-lg shadow-[0_0_15px_rgba(255,0,122,0.4)]">
+              🍻
+            </div>
             <div>
-              <h1 className="text-lg font-black tracking-wider text-transparent bg-gradient-to-r from-pink-500 via-cyan-400 to-amber-300 bg-clip-text">วงเหล้า</h1>
-              <p className="text-[9px] uppercase tracking-widest text-slate-400">
-                WongLao Party Hub {roomCode && <span className="text-emerald-400 font-bold">● ห้อง {roomCode} {isHost && '(HOST)'}</span>}
-              </p>
+              <h1 className="text-base font-black tracking-tight text-white flex items-center gap-1">
+                วงเหล้า <span className="text-[10px] bg-pink-500/20 text-pink-400 border border-pink-500/30 px-1.5 py-0.5 rounded-full font-bold">Party</span>
+              </h1>
+              <p className="text-[10px] text-slate-400">Hub เกมปาร์ตี้วงเหล้าภาษาไทย</p>
             </div>
           </div>
-          <div className="flex gap-2">
-            <button onClick={() => setIsStatsOpen(true)} className="rounded-xl border border-amber-400/30 bg-amber-400/10 p-2 text-amber-300"><BarChart3 className="h-4 w-4" /></button>
-            <button onClick={() => setIsPassModalOpen(true)} className="rounded-xl border border-amber-400/40 bg-amber-400/10 p-2 text-amber-300"><Crown className="h-4 w-4" /></button>
-            <button onClick={() => setIsRoomModalOpen(true)} className={`rounded-xl border p-2 ${roomCode ? 'border-emerald-500/60 text-emerald-400' : 'border-slate-800 text-cyan-400'}`}><Users className="h-4 w-4" /></button>
-            <button onClick={() => setIsMuted(soundManager.toggleMute())} className="rounded-xl border border-slate-800 bg-slate-900 p-2 text-slate-300">{isMuted ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}</button>
+          <div className="flex items-center gap-2">
+            <button onClick={() => setIsPassModalOpen(true)} className={`flex items-center gap-1 rounded-xl px-2.5 py-1.5 text-xs font-black transition ${isPremiumUnlocked ? 'bg-amber-400/20 text-amber-300 border border-amber-400/40' : 'bg-slate-900 text-slate-400 border border-slate-800'}`}>
+              <Crown className="h-3.5 w-3.5 text-amber-400" />
+              <span>{isPremiumUnlocked ? 'VIP' : 'Pass'}</span>
+            </button>
+            <button onClick={() => setIsMuted(soundManager.toggleMute())} className="rounded-xl border border-slate-800 bg-slate-900 p-2 text-slate-400 hover:text-white transition">
+              {isMuted ? <VolumeX className="h-4 w-4 text-red-400" /> : <Volume2 className="h-4 w-4 text-cyan-400" />}
+            </button>
           </div>
         </div>
       </header>
 
-      <main className="mx-auto w-full max-w-md space-y-4 px-4 pt-5">
+      {/* Main Content */}
+      <main className="mx-auto max-w-md px-4 pt-4 space-y-4">
         {!roomCode ? (
           <>
-            <section className="rounded-3xl border border-cyan-500/30 bg-gradient-to-br from-slate-900 to-slate-950 p-4 shadow-[0_0_20px_rgba(0,242,254,0.08)]">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-xs font-bold text-cyan-400 uppercase tracking-widest flex items-center gap-1.5">
-                  <UserCheck className="h-4 w-4" /> โปรไฟล์ของคุณ (ตั้งชื่อเล่น)
-                </span>
-                <span className="text-[10px] text-slate-500">พิมพ์เปลี่ยนชื่อได้ตลอด</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="text-2xl bg-slate-950 border border-slate-800 p-2 rounded-2xl flex-shrink-0">{playerAvatar}</span>
-                <input
-                  type="text"
-                  value={playerName}
-                  onChange={(e) => handleUpdateProfile(e.target.value, playerAvatar)}
-                  placeholder="กรอกชื่อเล่นของคุณ (เช่น พี่เป๊ก สายย่อ)..."
-                  maxLength={20}
-                  className="w-full rounded-2xl border border-slate-700 bg-slate-950 px-3.5 py-2.5 text-xs font-bold text-white outline-none focus:border-cyan-400 placeholder-slate-600"
-                />
+            <section className="rounded-3xl border border-cyan-500/30 bg-slate-950 p-4">
+              <div className="flex items-center gap-2.5">
+                <span className="text-2xl bg-slate-900 border border-slate-800 p-2 rounded-2xl flex-shrink-0">{playerAvatar}</span>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] text-cyan-400 font-bold uppercase flex items-center gap-1">
+                      <UserCheck className="w-3.5 h-3.5" /> ชื่อผู้เล่นของคุณ
+                    </span>
+                    <span className={`text-[10px] font-bold tabular-nums ${
+                      playerName.length >= 18 ? 'text-red-400' : playerName.length >= 14 ? 'text-amber-400' : 'text-slate-500'
+                    }`}>{playerName.length}/20</span>
+                  </div>
+                  <input
+                    type="text"
+                    value={playerName}
+                    onChange={(e) => handleUpdateProfile(e.target.value, playerAvatar)}
+                    placeholder="กรอกชื่อเล่นของคุณ (เช่น พี่เป๊ก สายย่อ)..."
+                    maxLength={20}
+                    className="w-full rounded-2xl border border-slate-700 bg-slate-950 px-3.5 py-2.5 text-xs font-bold text-white outline-none focus:border-cyan-400 placeholder-slate-600"
+                  />
+                </div>
               </div>
             </section>
             <section className="rounded-3xl border border-pink-500/30 bg-gradient-to-br from-pink-950/40 to-slate-950 p-5">
@@ -259,6 +293,9 @@ export default function App() {
             players={connectedPlayers}
             isHost={isHost}
             activeGame={activeTab}
+            roomIntensity={roomIntensity}
+            isPremiumUnlocked={isPremiumUnlocked}
+            onSelectIntensity={handleSelectIntensity}
             stats={stats}
             shareUrl={shareUrl}
             playerName={playerName}

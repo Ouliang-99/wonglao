@@ -80,10 +80,10 @@ export default function DiceRoller({ onSyncResult }) {
         if (!remoteRuleMsg) {
           if (activeCount === 2) {
             if (finalValues[0] === finalValues[1]) {
-              msg = `แต้มเท่ากัน! (${finalValues[0]}-${finalValues[1]}) คนทอยสั่งใครก็ได้ดื่ม 1 จิบ 🥂`;
+              msg = `แต้มเท่ากัน! (${finalValues[0]}-${finalValues[1]}) คนทอยสั่งใครก็ได้ดื่ม 1 ยก 🥂`;
               confetti({ particleCount: 50, spread: 50 });
             } else if (total === 7 || total === 11) {
-              msg = `ออก 7 หรือ 11! คนทอยดื่ม 1 จิบ 🍻`;
+              msg = `ออก 7 หรือ 11! คนทอยดื่ม 1 ยก 🍻`;
             } else if (total === 12) {
               msg = `แจ็กพอต 12 แต้ม! ชนแก้วทั้งวง! 🎉`;
               confetti({ particleCount: 90, spread: 70 });

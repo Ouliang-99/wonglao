@@ -141,14 +141,21 @@ export default function RoomModal({
 
           <div className="flex items-center gap-2">
             <span className="text-2xl bg-slate-900 border border-slate-800 p-2 rounded-xl flex-shrink-0">{playerAvatar}</span>
-            <input
-              type="text"
-              value={playerName}
-              onChange={(e) => handleNameChange(e.target.value)}
-              placeholder="กรอกชื่อเล่นของคุณ (เช่น พี่เป๊ก สายย่อ)..."
-              maxLength={20}
-              className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-cyan-400 font-bold placeholder-slate-600"
-            />
+            <div className="flex-1 space-y-1">
+              <input
+                type="text"
+                value={playerName}
+                onChange={(e) => handleNameChange(e.target.value)}
+                placeholder="กรอกชื่อเล่นของคุณ (เช่น พี่เป๊ก สายย่อ)..."
+                maxLength={20}
+                className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-cyan-400 font-bold placeholder-slate-600"
+              />
+              <div className="flex justify-end">
+                <span className={`text-[10px] font-bold tabular-nums ${
+                  playerName.length >= 18 ? 'text-red-400' : playerName.length >= 14 ? 'text-amber-400' : 'text-slate-500'
+                }`}>{playerName.length}/20</span>
+              </div>
+            </div>
           </div>
 
           <div>

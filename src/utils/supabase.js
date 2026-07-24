@@ -33,7 +33,7 @@ export async function saveCardToSupabase(cardObj) {
   try {
     const payload = {
       prompt: cardObj.prompt,
-      penalty: cardObj.penalty || 'ดื่ม 1 จิบ',
+      penalty: cardObj.penalty || 'ดื่ม 1 ยก',
       deck_type: cardObj.deckType || 'truth_or_dare',
       intensity: cardObj.intensity || 'free',
       type: cardObj.type || 'truth',

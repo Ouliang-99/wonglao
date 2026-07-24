@@ -1,5 +1,6 @@
 import React from 'react';
-import { BarChart3, Check, Copy, Gamepad2, LogOut, Play, UserCheck, Users } from 'lucide-react';
+import { BarChart3, Check, Copy, Gamepad2, LogOut, Play, UserCheck, Users, Flame, Lock } from 'lucide-react';
+import { INTENSITY_LEVELS } from '../data/decks';
 
 export const PARTY_GAMES = [
   { id: 'cards', label: 'การ์ดวงเหล้า', description: 'ผลัดกันตอบคำถามและทำภารกิจ', emoji: '🃏', color: 'from-pink-500 to-rose-600' },
@@ -13,12 +14,15 @@ export default function RoomLobby({
   players,
   isHost,
   activeGame,
+  roomIntensity = 'free',
+  isPremiumUnlocked = false,
   stats = [],
   shareUrl,
   playerName = '',
   playerAvatar = '🍻',
   onUpdateProfile,
   onSelectGame,
+  onSelectIntensity,
   onOpenStats,
   onCopyRoom,
   onLeave
@@ -62,12 +66,58 @@ export default function RoomLobby({
               maxLength={20}
               className="w-full bg-transparent text-xs font-bold text-white focus:outline-none focus:text-cyan-400 placeholder-slate-600 mt-0.5"
             />
+            <div className="flex justify-end mt-0.5">
+              <span className={`text-[9px] font-bold tabular-nums ${
+                playerName.length >= 18 ? 'text-red-400' : playerName.length >= 14 ? 'text-amber-400' : 'text-slate-600'
+              }`}>{playerName.length}/20</span>
+            </div>
+          </div>
+        </div>
+
+        {/* ROOM INTENSITY LEVEL SELECTOR */}
+        <div className="mt-3 rounded-2xl border border-slate-800 bg-slate-950/90 p-3 space-y-2">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-black uppercase text-amber-400 flex items-center gap-1.5">
+              <Flame className="w-4 h-4 text-amber-400 animate-pulse" />
+              <span>ระดับความห้าวของวง</span>
+            </span>
+            <span className="text-[10px] font-bold text-slate-400">
+              {isHost ? 'Host เปลี่ยนได้ทุกเมื่อ' : 'ระดับที่ Host เลือกไว้'}
+            </span>
+          </div>
+
+          <div className="grid grid-cols-2 gap-2">
+            {Object.keys(INTENSITY_LEVELS).map((key) => {
+              const level = INTENSITY_LEVELS[key];
+              const isSelected = roomIntensity === level.id;
+              const isLocked = level.isPremium && !isPremiumUnlocked;
+
+              return (
+                <button
+                  key={level.id}
+                  disabled={!isHost}
+                  onClick={() => onSelectIntensity && onSelectIntensity(level.id)}
+                  className={`py-2 px-2.5 rounded-xl text-left border transition relative flex flex-col justify-between ${
+                    isSelected
+                      ? `border-amber-400 bg-gradient-to-r ${level.color} text-white shadow-md`
+                      : 'border-slate-800 bg-slate-900/60 text-slate-400 hover:border-slate-700'
+                  } ${!isHost ? 'cursor-default opacity-85' : 'active:scale-95'}`}
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-black">{level.name}</span>
+                    {isLocked && <Lock className="w-3 h-3 text-amber-300" />}
+                  </div>
+                  <span className={`text-[10px] mt-0.5 font-semibold truncate ${isSelected ? 'text-white/90' : 'text-slate-500'}`}>
+                    {level.badge}
+                  </span>
+                </button>
+              );
+            })}
           </div>
         </div>
 
         <div className="mt-3 flex items-center justify-between rounded-2xl border border-slate-800 bg-slate-950/80 p-3">
           <div className="flex items-center gap-2 text-xs text-slate-300"><Users className="h-4 w-4 text-emerald-400" /> สมาชิก {players.length} คน</div>
-          <button onClick={onCopyRoom} className="flex items-center gap-1 rounded-xl bg-cyan-400 px-3 py-1.5 text-xs font-black text-slate-950"><Copy className="h-3.5 w-3.5" /> คัดลอกลิงก์</button>
         </div>
 
         <div className="mt-3 grid grid-cols-2 gap-2">

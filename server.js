@@ -98,9 +98,15 @@ function addStatsForPlayer(room, player, changes = {}) {
     avatar: player.avatar,
     gamesPlayed: 0,
     turns: 0,
-    score: 0
+    score: 0,
+    jib: 0,
+    kaew: 0,
+    klom: 0,
+    custom: 0
   };
   Object.assign(current, { name: player.name, avatar: player.avatar }, changes);
+  current.score = (current.jib || 0) + (current.kaew || 0) + (current.klom || 0) + (current.custom || 0);
+
   const next = stats.filter((item) => item.id !== player.id);
   next.push(current);
   room.state.stats = next.sort((a, b) => (b.score || 0) - (a.score || 0) || (b.turns || 0) - (a.turns || 0));
@@ -250,11 +256,24 @@ wss.on('connection', (ws) => {
             room.players.forEach((player) => addStatsForPlayer(room, player));
           } else {
             room.state = { ...room.state, ...payload };
-            if (payload.actionType !== 'TAB_CHANGE') {
-              const currentStats = getRoomStats(room).find((stat) => stat.id === actor?.id);
+            
+            const currentStats = getRoomStats(room).find((stat) => stat.id === actor?.id) || {};
+            const activeIntensity = payload.intensity || room.state.roomIntensity || 'free';
+            const intensityKey = activeIntensity === 'spicy' ? 'kaew' : activeIntensity === 'extreme' ? 'klom' : activeIntensity === 'custom' ? 'custom' : 'jib';
+
+            if (payload.actionType === 'CARD_DRAW') {
               addStatsForPlayer(room, actor, {
-                turns: (currentStats?.turns || 0) + 1,
-                score: (currentStats?.score || 0) + 1
+                turns: (currentStats.turns || 0) + 1
+              });
+            } else if (payload.actionType === 'PENALTY_ADD') {
+              const added = payload.addedAmount || 1;
+              addStatsForPlayer(room, actor, {
+                [intensityKey]: (currentStats[intensityKey] || 0) + added
+              });
+            } else if (payload.actionType === 'CROC_PRESS' && payload.crocToothPress?.isTrap) {
+              const added = payload.addedAmount || 1;
+              addStatsForPlayer(room, actor, {
+                [intensityKey]: (currentStats[intensityKey] || 0) + added
               });
             }
           }
@@ -264,8 +283,10 @@ wss.on('connection', (ws) => {
             type: 'SYNC_GAME_STATE',
             payload: {
               senderId: playerId,
-              senderName: room.players.get(ws)?.name || 'เพื่อนในวง',
+              senderName: actor?.name || 'เพื่อนในวง',
+              senderAvatar: actor?.avatar || '🍻',
               actionType: payload.actionType,
+              addedAmount: payload.addedAmount,
               state: room.state,
               customMessage: payload.customMessage
             }

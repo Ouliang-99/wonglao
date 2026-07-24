@@ -5,14 +5,14 @@ import { wsClient } from '../utils/websocket';
 import { RotateCw, Plus, Trash2, Trophy } from 'lucide-react';
 
 const DEFAULT_SLICES = [
-  { text: 'ดื่ม 1 จิบ 🍻', color: '#FF007A' },
-  { text: 'ดื่ม 2 จิบ 🥂', color: '#00F2FE' },
+  { text: 'ดื่ม 1 ยก 🍻', color: '#FF007A' },
+  { text: 'ดื่ม 2 ยก 🥂', color: '#00F2FE' },
   { text: 'รอดตัว! ✨', color: '#00FF66' },
   { text: 'คนซ้ายมือดื่ม 🍻', color: '#FFD700' },
   { text: 'คนขวามือดื่ม 🍻', color: '#FF7700' },
   { text: 'ชนแก้วทั้งวง! 🎉', color: '#A855F7' },
   { text: 'เต้น 10 วินาที 💃', color: '#EC4899' },
-  { text: 'ดื่ม 3 จิบ ใหญ่! 💥', color: '#EF4444' }
+  { text: 'ดื่ม 3 ยก ใหญ่! 💥', color: '#EF4444' }
 ];
 
 export default function SpinWheel({ onSyncResult }) {

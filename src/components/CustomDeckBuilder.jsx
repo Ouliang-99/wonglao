@@ -27,7 +27,7 @@ export default function CustomDeckBuilder() {
       type: deckType === DECK_TYPES.TRUTH_OR_DARE ? 'truth' : 'never',
       intensity,
       prompt: promptText.trim(),
-      penalty: penaltyText.trim() || 'ดื่ม 1 จิบ',
+      penalty: penaltyText.trim() || 'ดื่ม 1 ยก',
       isCustom: true
     };
 
@@ -122,7 +122,7 @@ export default function CustomDeckBuilder() {
             type="text"
             value={penaltyText}
             onChange={(e) => setPenaltyText(e.target.value)}
-            placeholder="เช่น: ดื่ม 2 จิบ หรือยอมโดนถ่ายรูปหลุด"
+            placeholder="เช่น: ดื่ม 1 ยก หรือยอมโดนถ่ายรูปหลุด"
             className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-cyan-400"
           />
         </div>
