@@ -273,6 +273,34 @@ wss.on('connection', (ws) => {
           break;
         }
 
+        case 'UPDATE_PROFILE': {
+          if (!currentRoomCode) return;
+          const room = rooms.get(currentRoomCode);
+          if (!room) return;
+
+          const playerObj = room.players.get(ws);
+          if (playerObj) {
+            if (payload.playerName && payload.playerName.trim()) {
+              playerObj.name = payload.playerName.trim();
+            }
+            if (payload.playerAvatar) {
+              playerObj.avatar = payload.playerAvatar;
+            }
+            addStatsForPlayer(room, playerObj);
+            await persistRoomToRedis(currentRoomCode, room);
+
+            broadcastToRoom(currentRoomCode, {
+              type: 'PLAYER_UPDATED',
+              payload: {
+                player: playerObj,
+                players: getRoomPlayerList(currentRoomCode),
+                stats: getRoomStats(room)
+              }
+            });
+          }
+          break;
+        }
+
         default:
           break;
       }

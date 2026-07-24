@@ -34,7 +34,7 @@ export default function RoomModal({
         setRoomCode(payload.roomCode);
         setPlayers(payload.players);
         setErrorMsg('');
-      } else if (type === 'PLAYER_JOINED' || type === 'PLAYER_LEFT') {
+      } else if (type === 'PLAYER_JOINED' || type === 'PLAYER_LEFT' || type === 'PLAYER_UPDATED') {
         setPlayers(payload.players);
       } else if (type === 'ROOM_LEFT') {
         setRoomCode(null);
@@ -47,6 +47,22 @@ export default function RoomModal({
   }, []);
 
   if (!isOpen) return null;
+
+  const handleNameChange = (newName) => {
+    if (setPlayerName) setPlayerName(newName);
+    localStorage.setItem('wonglao_player_name', newName);
+    if (wsClient.roomCode) {
+      wsClient.updateProfile(newName.trim() || 'สายตี้', playerAvatar);
+    }
+  };
+
+  const handleAvatarChange = (newAvatar) => {
+    if (setPlayerAvatar) setPlayerAvatar(newAvatar);
+    localStorage.setItem('wonglao_player_avatar', newAvatar);
+    if (wsClient.roomCode) {
+      wsClient.updateProfile(playerName.trim() || 'สายตี้', newAvatar);
+    }
+  };
 
   const saveProfile = () => {
     const finalName = playerName.trim() || `สายตี้ #${Math.floor(10 + Math.random() * 90)}`;
@@ -108,25 +124,38 @@ export default function RoomModal({
           </p>
         </div>
 
-        {/* Compact Single Profile Pill */}
-        {!roomCode && (
-          <div className="bg-slate-950 p-3 rounded-2xl border border-slate-800 flex items-center justify-between">
-            <div className="flex items-center space-x-2.5">
-              <span className="text-2xl">{playerAvatar}</span>
-              <div>
-                <span className="text-[10px] text-slate-500 font-bold block uppercase">โปรไฟล์ของคุณ</span>
-                <span className="text-sm font-bold text-white">
-                  {playerName.trim() || 'สายตี้ (สุ่มชื่อ)'}
-                </span>
-              </div>
-            </div>
-            <div className="flex space-x-1">
-              {AVATARS.slice(0, 4).map((av) => (
+        {/* Interactive Profile Editing Card */}
+        <div className="bg-slate-950 p-4 rounded-2xl border border-slate-800 space-y-3">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+              <UserCheck className="w-4 h-4 text-cyan-400" />
+              ชื่อเล่นของคุณในวง
+            </span>
+            <span className="text-[10px] text-cyan-400 font-medium">พิมพ์เปลี่ยนชื่อได้ทันที</span>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <span className="text-2xl bg-slate-900 border border-slate-800 p-2 rounded-xl flex-shrink-0">{playerAvatar}</span>
+            <input
+              type="text"
+              value={playerName}
+              onChange={(e) => handleNameChange(e.target.value)}
+              placeholder="กรอกชื่อเล่นของคุณ (เช่น พี่เป๊ก สายย่อ)..."
+              maxLength={20}
+              className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-cyan-400 font-bold placeholder-slate-600"
+            />
+          </div>
+
+          <div>
+            <span className="text-[10px] text-slate-500 font-bold block mb-1.5 uppercase">เลือกรูปโปรไฟล์</span>
+            <div className="grid grid-cols-5 gap-1.5">
+              {AVATARS.map((av) => (
                 <button
                   key={av}
-                  onClick={() => setPlayerAvatar(av)}
-                  className={`w-7 h-7 rounded-lg text-sm flex items-center justify-center border ${
-                    playerAvatar === av ? 'border-cyan-400 bg-cyan-950/50' : 'border-slate-800 bg-slate-900 opacity-60'
+                  type="button"
+                  onClick={() => handleAvatarChange(av)}
+                  className={`h-9 rounded-xl text-lg flex items-center justify-center border transition ${
+                    playerAvatar === av ? 'border-cyan-400 bg-cyan-950/60 shadow-[0_0_10px_rgba(0,242,254,0.3)]' : 'border-slate-800 bg-slate-900 opacity-60 hover:opacity-100'
                   }`}
                 >
                   {av}
@@ -134,7 +163,7 @@ export default function RoomModal({
               ))}
             </div>
           </div>
-        )}
+        </div>
 
         {/* Room Active View */}
         {roomCode ? (

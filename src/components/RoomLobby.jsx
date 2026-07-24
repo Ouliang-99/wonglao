@@ -1,5 +1,5 @@
 import React from 'react';
-import { BarChart3, Check, Copy, Gamepad2, LogOut, Play, Users } from 'lucide-react';
+import { BarChart3, Check, Copy, Gamepad2, LogOut, Play, UserCheck, Users } from 'lucide-react';
 
 export const PARTY_GAMES = [
   { id: 'cards', label: 'การ์ดวงเหล้า', description: 'ผลัดกันตอบคำถามและทำภารกิจ', emoji: '🃏', color: 'from-pink-500 to-rose-600' },
@@ -15,6 +15,9 @@ export default function RoomLobby({
   activeGame,
   stats = [],
   shareUrl,
+  playerName = '',
+  playerAvatar = '🍻',
+  onUpdateProfile,
   onSelectGame,
   onOpenStats,
   onCopyRoom,
@@ -41,7 +44,28 @@ export default function RoomLobby({
           </div>
         </div>
 
-        <div className="mt-4 flex items-center justify-between rounded-2xl border border-slate-800 bg-slate-950/80 p-3">
+        {/* User Profile Quick Edit */}
+        <div className="mt-3 flex items-center gap-2.5 rounded-2xl border border-slate-800 bg-slate-950 p-2.5">
+          <span className="text-xl bg-slate-900 border border-slate-800 p-1.5 rounded-xl flex-shrink-0">{playerAvatar}</span>
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center justify-between">
+              <span className="text-[9px] text-cyan-400 font-bold uppercase flex items-center gap-1">
+                <UserCheck className="w-3 h-3" /> เปลี่ยนชื่อเล่นของคุณ
+              </span>
+              <span className="text-[9px] text-slate-500">พิมพ์เปลี่ยนชื่อได้ทันที</span>
+            </div>
+            <input
+              type="text"
+              value={playerName}
+              onChange={(e) => onUpdateProfile && onUpdateProfile(e.target.value, playerAvatar)}
+              placeholder="กรอกชื่อเล่นของคุณ..."
+              maxLength={20}
+              className="w-full bg-transparent text-xs font-bold text-white focus:outline-none focus:text-cyan-400 placeholder-slate-600 mt-0.5"
+            />
+          </div>
+        </div>
+
+        <div className="mt-3 flex items-center justify-between rounded-2xl border border-slate-800 bg-slate-950/80 p-3">
           <div className="flex items-center gap-2 text-xs text-slate-300"><Users className="h-4 w-4 text-emerald-400" /> สมาชิก {players.length} คน</div>
           <button onClick={onCopyRoom} className="flex items-center gap-1 rounded-xl bg-cyan-400 px-3 py-1.5 text-xs font-black text-slate-950"><Copy className="h-3.5 w-3.5" /> คัดลอกลิงก์</button>
         </div>
@@ -51,7 +75,7 @@ export default function RoomLobby({
             <div key={player.id} className="flex items-center gap-2 rounded-xl border border-slate-800 bg-slate-900/70 px-3 py-2">
               <span className="text-lg">{player.avatar}</span>
               <span className="min-w-0 truncate text-xs font-bold text-white">{player.name}</span>
-              {player.isHost && <span className="ml-auto text-[10px] text-amber-300">HOST</span>}
+              {player.isHost && <span className="ml-auto text-[10px] text-amber-300 font-bold">HOST</span>}
             </div>
           ))}
         </div>

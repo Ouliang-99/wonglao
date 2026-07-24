@@ -93,6 +93,7 @@ class WongLaoWebSocketClient {
 
       case 'PLAYER_JOINED':
       case 'PLAYER_LEFT':
+      case 'PLAYER_UPDATED':
         this.players = payload.players;
         if (payload.players) {
           const me = payload.players.find((p) => p.id === this.playerId);
@@ -126,6 +127,13 @@ class WongLaoWebSocketClient {
     this.sendWhenReady({
       type: 'JOIN_ROOM',
       payload: { roomCode, playerName, playerAvatar }
+    });
+  }
+
+  updateProfile(playerName, playerAvatar) {
+    this.sendWhenReady({
+      type: 'UPDATE_PROFILE',
+      payload: { playerName, playerAvatar }
     });
   }
 
