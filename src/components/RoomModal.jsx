@@ -2,14 +2,20 @@ import React, { useState, useEffect } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
 import { wsClient } from '../utils/websocket';
 import { soundManager } from '../utils/audio';
-import { X, Users, QrCode, LogOut, Copy, Check } from 'lucide-react';
+import { X, Users, QrCode, LogOut, Copy, Check, UserCheck } from 'lucide-react';
 
 const AVATARS = ['🍻', '🦊', '🐲', '👑', '🍹', '🐯', '🔥', '🥳', '😎', '💃'];
 
-export default function RoomModal({ isOpen, onClose, initialRoomCode = '' }) {
+export default function RoomModal({
+  isOpen,
+  onClose,
+  initialRoomCode = '',
+  playerName = '',
+  setPlayerName,
+  playerAvatar = '🍻',
+  setPlayerAvatar
+}) {
   const [roomCode, setRoomCode] = useState(wsClient.roomCode);
-  const [playerName, setPlayerName] = useState(() => localStorage.getItem('wonglao_player_name') || '');
-  const [playerAvatar, setPlayerAvatar] = useState(() => localStorage.getItem('wonglao_player_avatar') || '🍻');
   const [inputCode, setInputCode] = useState(initialRoomCode);
   const [players, setPlayers] = useState(wsClient.players);
   const [copied, setCopied] = useState(false);
@@ -43,21 +49,26 @@ export default function RoomModal({ isOpen, onClose, initialRoomCode = '' }) {
   if (!isOpen) return null;
 
   const saveProfile = () => {
-    localStorage.setItem('wonglao_player_name', playerName || 'สายตี้');
+    const finalName = playerName.trim() || `สายตี้ #${Math.floor(10 + Math.random() * 90)}`;
+    localStorage.setItem('wonglao_player_name', finalName);
     localStorage.setItem('wonglao_player_avatar', playerAvatar);
+    if (!playerName.trim() && setPlayerName) {
+      setPlayerName(finalName);
+    }
+    return finalName;
   };
 
   const handleCreate = () => {
     soundManager.playClick();
-    saveProfile();
-    wsClient.createRoom(playerName || 'Host เจ้ามือ', playerAvatar);
+    const finalName = saveProfile();
+    wsClient.createRoom(finalName, playerAvatar);
   };
 
   const handleJoin = () => {
     if (!inputCode.trim()) return;
     soundManager.playClick();
-    saveProfile();
-    wsClient.joinRoom(inputCode.trim(), playerName || 'สายตี้', playerAvatar);
+    const finalName = saveProfile();
+    wsClient.joinRoom(inputCode.trim(), finalName, playerAvatar);
   };
 
   const handleLeave = () => {
@@ -96,38 +107,25 @@ export default function RoomModal({ isOpen, onClose, initialRoomCode = '' }) {
           </p>
         </div>
 
-        {/* Player Profile Selector */}
+        {/* Compact Single Profile Pill */}
         {!roomCode && (
-          <div className="bg-slate-950 p-3.5 rounded-2xl border border-slate-800 space-y-2.5">
-            <label className="text-xs font-bold text-slate-300 block">
-              ตั้งชื่อและอวตารของคุณในวงเหล้า
-            </label>
-            <div className="flex space-x-2">
-              <div className="relative">
-                <button
-                  type="button"
-                  className="w-10 h-10 rounded-xl bg-slate-900 border border-slate-700 text-xl flex items-center justify-center"
-                >
-                  {playerAvatar}
-                </button>
+          <div className="bg-slate-950 p-3 rounded-2xl border border-slate-800 flex items-center justify-between">
+            <div className="flex items-center space-x-2.5">
+              <span className="text-2xl">{playerAvatar}</span>
+              <div>
+                <span className="text-[10px] text-slate-500 font-bold block uppercase">โปรไฟล์ของคุณ</span>
+                <span className="text-sm font-bold text-white">
+                  {playerName.trim() || 'สายตี้ (สุ่มชื่อ)'}
+                </span>
               </div>
-              <input
-                type="text"
-                value={playerName}
-                onChange={(e) => setPlayerName(e.target.value)}
-                placeholder="ชื่อเล่น / ฉายาในวง..."
-                className="flex-1 bg-slate-900 border border-slate-700 rounded-xl px-3 text-sm text-white focus:outline-none focus:border-cyan-400"
-              />
             </div>
-            <div className="flex space-x-1.5 overflow-x-auto py-1">
-              {AVATARS.map((av) => (
+            <div className="flex space-x-1">
+              {AVATARS.slice(0, 4).map((av) => (
                 <button
                   key={av}
                   onClick={() => setPlayerAvatar(av)}
-                  className={`w-8 h-8 rounded-lg text-base flex-shrink-0 flex items-center justify-center border ${
-                    playerAvatar === av
-                      ? 'border-cyan-400 bg-cyan-950/50 scale-110'
-                      : 'border-slate-800 bg-slate-900'
+                  className={`w-7 h-7 rounded-lg text-sm flex items-center justify-center border ${
+                    playerAvatar === av ? 'border-cyan-400 bg-cyan-950/50' : 'border-slate-800 bg-slate-900 opacity-60'
                   }`}
                 >
                   {av}
@@ -212,10 +210,10 @@ export default function RoomModal({ isOpen, onClose, initialRoomCode = '' }) {
 
             <button
               onClick={handleCreate}
-              className="w-full py-3.5 bg-gradient-to-r from-cyan-400 to-pink-500 text-slate-950 font-black rounded-2xl text-sm shadow-md hover:shadow-[0_0_20px_rgba(0,242,254,0.5)] active:scale-95 transition flex items-center justify-center space-x-2"
+              className="w-full py-3.5 bg-gradient-to-r from-cyan-400 to-teal-300 text-slate-950 font-black rounded-2xl text-sm shadow-md hover:shadow-[0_0_20px_rgba(0,242,254,0.5)] active:scale-95 transition flex items-center justify-center space-x-2"
             >
               <QrCode className="w-5 h-5" />
-              <span>สร้างห้องเป็น Host (รับรหัส QR)</span>
+              <span>สร้างห้องเป็น Host ทันที</span>
             </button>
 
             <div className="relative flex py-1 items-center">

@@ -23,7 +23,6 @@ import {
   Radio
 } from 'lucide-react';
 
-// Lazy loading components for bundle size optimization
 const CardGame = lazy(() => import('./components/CardGame'));
 const SpinWheel = lazy(() => import('./components/SpinWheel'));
 const FingerChooser = lazy(() => import('./components/FingerChooser'));
@@ -91,9 +90,12 @@ export default function App() {
     return unsubscribe;
   }, [activeTab]);
 
-  const saveProfile = () => {
-    localStorage.setItem('wonglao_player_name', playerName || 'สายตี้');
+  const getOrSaveProfile = () => {
+    const finalName = playerName.trim() || `สายตี้ #${Math.floor(10 + Math.random() * 90)}`;
+    localStorage.setItem('wonglao_player_name', finalName);
     localStorage.setItem('wonglao_player_avatar', playerAvatar);
+    if (!playerName.trim()) setPlayerName(finalName);
+    return finalName;
   };
 
   const toggleSound = () => {
@@ -122,8 +124,8 @@ export default function App() {
 
   const handleQuickCreateRoom = () => {
     soundManager.playClick();
-    saveProfile();
-    wsClient.createRoom(playerName || 'Host เจ้ามือ', playerAvatar);
+    const finalName = getOrSaveProfile();
+    wsClient.createRoom(finalName, playerAvatar);
     setIsRoomModalOpen(true);
   };
 
@@ -133,8 +135,8 @@ export default function App() {
       return;
     }
     soundManager.playClick();
-    saveProfile();
-    wsClient.joinRoom(homeInputCode.trim(), playerName || 'สายตี้', playerAvatar);
+    const finalName = getOrSaveProfile();
+    wsClient.joinRoom(homeInputCode.trim(), finalName, playerAvatar);
     setIsRoomModalOpen(true);
   };
 
@@ -235,18 +237,23 @@ export default function App() {
             <button
               onClick={() => {
                 const nextAvIdx = (AVATARS.indexOf(playerAvatar) + 1) % AVATARS.length;
-                setPlayerAvatar(AVATARS[nextAvIdx]);
+                const newAv = AVATARS[nextAvIdx];
+                setPlayerAvatar(newAv);
+                localStorage.setItem('wonglao_player_avatar', newAv);
               }}
-              className="w-9 h-9 rounded-xl bg-slate-900 border border-slate-700 text-lg flex items-center justify-center flex-shrink-0"
-              title="เปลี่ยนอวตาร"
+              className="w-9 h-9 rounded-xl bg-slate-900 border border-slate-700 text-lg flex items-center justify-center flex-shrink-0 active:scale-95 transition"
+              title="แตะเพื่อเปลี่ยนอวตาร"
             >
               {playerAvatar}
             </button>
             <input
               type="text"
               value={playerName}
-              onChange={(e) => setPlayerName(e.target.value)}
-              placeholder="ใส่ชื่อเล่นในวงของคุณ..."
+              onChange={(e) => {
+                setPlayerName(e.target.value);
+                localStorage.setItem('wonglao_player_name', e.target.value);
+              }}
+              placeholder="ใส่ชื่อเล่นในวง (ไม่ใส่ = สุ่มชื่อให้อัตโนมัติ)"
               className="flex-1 bg-slate-900 border border-slate-700 rounded-xl px-3 text-xs text-white focus:outline-none focus:border-cyan-400"
             />
           </div>
@@ -420,6 +427,10 @@ export default function App() {
         isOpen={isRoomModalOpen}
         onClose={() => setIsRoomModalOpen(false)}
         initialRoomCode={homeInputCode}
+        playerName={playerName}
+        setPlayerName={setPlayerName}
+        playerAvatar={playerAvatar}
+        setPlayerAvatar={setPlayerAvatar}
       />
       <PartyPassModal
         isOpen={isPassModalOpen}
