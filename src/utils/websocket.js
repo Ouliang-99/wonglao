@@ -13,10 +13,20 @@ class WongLaoWebSocketClient {
   }
 
   getWsUrl() {
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const host = window.location.hostname || 'localhost';
-    // Use port 8080 for WebSocket server when running locally
-    return `${protocol}//${host}:8080`;
+    // 1. If explicit env variable is set, use it
+    if (import.meta.env.VITE_WS_URL) {
+      return import.meta.env.VITE_WS_URL;
+    }
+
+    // 2. Local development fallback
+    const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+    if (isLocalhost) {
+      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      return `${protocol}//${window.location.hostname}:8080`;
+    }
+
+    // 3. Production Render WebSocket Server (Change this URL to your Render service URL)
+    return 'wss://wonglao-server.onrender.com';
   }
 
   connect() {
@@ -28,7 +38,7 @@ class WongLaoWebSocketClient {
       this.ws = new WebSocket(this.serverUrl);
 
       this.ws.onopen = () => {
-        console.log('⚡ Connected to WongLao WebSocket Server');
+        console.log('⚡ Connected to WongLao WebSocket Server:', this.serverUrl);
       };
 
       this.ws.onmessage = (event) => {
@@ -120,7 +130,6 @@ class WongLaoWebSocketClient {
     if (this.ws && this.ws.readyState === WebSocket.OPEN) {
       this.ws.send(JSON.stringify(msgObj));
     } else {
-      // Connect and retry once open
       this.connect();
       setTimeout(() => {
         if (this.ws && this.ws.readyState === WebSocket.OPEN) {
