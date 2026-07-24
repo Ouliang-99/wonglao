@@ -1,4 +1,4 @@
-import React, { lazy, Suspense, useEffect, useMemo, useState } from 'react';
+import React, { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { BarChart3, Crown, Dices, LogIn, Plus, Radio, UserCheck, Users, Volume2, VolumeX, Sparkles } from 'lucide-react';
 import { soundManager } from './utils/audio';
 import { wsClient } from './utils/websocket';
@@ -30,6 +30,7 @@ export default function App() {
   const [homeInputCode, setHomeInputCode] = useState('');
   const [playerName, setPlayerName] = useState(() => localStorage.getItem('wonglao_player_name') || '');
   const [playerAvatar, setPlayerAvatar] = useState(() => localStorage.getItem('wonglao_player_avatar') || '🍻');
+  const updateProfileTimerRef = useRef(null);
 
   const shareUrl = useMemo(() => `${window.location.href.split('?')[0].split('#')[0]}?room=${roomCode || ''}`, [roomCode]);
 
@@ -68,9 +69,13 @@ export default function App() {
     if (newAvatar !== undefined) setPlayerAvatar(newAvatar);
     localStorage.setItem('wonglao_player_name', nameToSave);
     localStorage.setItem('wonglao_player_avatar', avatarToSave);
-    if (roomCode) {
-      wsClient.updateProfile(nameToSave.trim() || 'สายตี้', avatarToSave);
-    }
+
+    if (updateProfileTimerRef.current) clearTimeout(updateProfileTimerRef.current);
+    updateProfileTimerRef.current = setTimeout(() => {
+      if (wsClient.roomCode) {
+        wsClient.updateProfile(nameToSave.trim() || 'สายตี้', avatarToSave);
+      }
+    }, 500);
   };
 
   const getOrSaveProfile = () => {

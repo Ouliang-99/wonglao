@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
 import { wsClient } from '../utils/websocket';
 import { soundManager } from '../utils/audio';
@@ -20,6 +20,7 @@ export default function RoomModal({
   const [players, setPlayers] = useState(wsClient.players);
   const [copied, setCopied] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
+  const nameTimerRef = useRef(null);
 
   useEffect(() => {
     if (initialRoomCode) {
@@ -51,9 +52,13 @@ export default function RoomModal({
   const handleNameChange = (newName) => {
     if (setPlayerName) setPlayerName(newName);
     localStorage.setItem('wonglao_player_name', newName);
-    if (wsClient.roomCode) {
-      wsClient.updateProfile(newName.trim() || 'สายตี้', playerAvatar);
-    }
+
+    if (nameTimerRef.current) clearTimeout(nameTimerRef.current);
+    nameTimerRef.current = setTimeout(() => {
+      if (wsClient.roomCode) {
+        wsClient.updateProfile(newName.trim() || 'สายตี้', playerAvatar);
+      }
+    }, 500);
   };
 
   const handleAvatarChange = (newAvatar) => {
