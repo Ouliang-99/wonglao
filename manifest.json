@@ -1,0 +1,17 @@
+{
+  "name": "วงเหล้า - WongLao Party Hub",
+  "short_name": "วงเหล้า",
+  "description": "เกมปาร์ตี้วงเหล้าภาษาไทย เล่นบนเว็บได้ทันที ไม่ต้องโหลดแอป",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0B0E14",
+  "theme_color": "#0B0E14",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "192x192 512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
