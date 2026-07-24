@@ -7,6 +7,10 @@ import { fetchAllCardsFromSupabase } from '../utils/supabase';
 import { Sparkles, ChevronRight, Lock, Flame, ShieldAlert, Award, Database, Eye, Zap } from 'lucide-react';
 import confetti from 'canvas-confetti';
 
+function cleanPromptText(text = '') {
+  return text.replace(/^(ความกล้า|ความจริง|ฉันไม่เคย|ใครมีโอกาสสุด|Truth|Dare):\s*/i, '');
+}
+
 export default function CardGame({ isPremiumUnlocked, onOpenPassModal, roomCode, players = [], isHost = false }) {
   const [selectedIntensity, setSelectedIntensity] = useState('free');
   const [cards, setCards] = useState([]);
@@ -57,7 +61,7 @@ export default function CardGame({ isPremiumUnlocked, onOpenPassModal, roomCode,
           wsClient.sendAction(
             'CARD_DRAW',
             { syncedCard: initialCard, turnIndex: 0 },
-            `การ์ดใบแรกของวง: ${initialCard.prompt}`
+            `การ์ดใบแรกของวง: ${cleanPromptText(initialCard.prompt)}`
           );
         }
       }
@@ -107,7 +111,7 @@ export default function CardGame({ isPremiumUnlocked, onOpenPassModal, roomCode,
           syncedCard: drawnCard,
           turnIndex: nextTurnIdx
         },
-        `การ์ดใบนี้ของ ${nextTurnUser.name}: ${drawnCard.prompt}`
+        `การ์ดใบนี้ของ ${nextTurnUser.name}: ${cleanPromptText(drawnCard.prompt)}`
       );
     }
   };
@@ -259,10 +263,10 @@ export default function CardGame({ isPremiumUnlocked, onOpenPassModal, roomCode,
                 </span>
               </div>
 
-              {/* Card Content Body */}
+              {/* Card Content Body - CLEAN PROMPT TEXT */}
               <div className="my-auto text-center px-2 py-2">
                 <p className="text-xl font-bold text-white leading-relaxed tracking-wide">
-                  {currentCard.prompt}
+                  {cleanPromptText(currentCard.prompt)}
                 </p>
 
                 {currentCard.penalty && (
