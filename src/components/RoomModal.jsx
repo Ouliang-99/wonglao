@@ -85,7 +85,8 @@ export default function RoomModal({
     setTimeout(() => setCopied(false), 2000);
   };
 
-  const shareUrl = roomCode ? `${window.location.origin}?room=${roomCode}` : '';
+  const currentPath = window.location.href.split('?')[0].split('#')[0];
+  const shareUrl = roomCode ? `${currentPath}?room=${roomCode}` : '';
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/85 backdrop-blur-md">
