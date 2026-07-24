@@ -133,7 +133,15 @@ export default function App() {
 
   const renderGame = (game) => (
     <Suspense fallback={<div className="flex h-64 items-center justify-center text-cyan-400 font-bold animate-pulse">กำลังโหลดเกม... 🍻</div>}>
-      {game === 'cards' && <CardGame isPremiumUnlocked={isPremiumUnlocked} onOpenPassModal={() => setIsPassModalOpen(true)} onSyncCard={(card) => wsClient.sendAction('GAME_EVENT', {}, `จั่วการ์ด: ${card.prompt}`)} />}
+      {game === 'cards' && (
+        <CardGame
+          isPremiumUnlocked={isPremiumUnlocked}
+          onOpenPassModal={() => setIsPassModalOpen(true)}
+          roomCode={roomCode}
+          players={connectedPlayers}
+          isHost={isHost}
+        />
+      )}
       {game === 'wheel' && <SpinWheel onSyncResult={(result) => wsClient.sendAction('GAME_EVENT', {}, result)} />}
       {game === 'finger' && <FingerChooser />}
       {game === 'croc' && <CrocodileDentist onSyncResult={(result) => wsClient.sendAction('GAME_EVENT', {}, result)} />}

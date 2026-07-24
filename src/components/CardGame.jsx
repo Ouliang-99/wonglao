@@ -1,12 +1,13 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { soundManager } from '../utils/audio';
+import { wsClient } from '../utils/websocket';
 import { DECK_TYPES, INTENSITY_LEVELS, INITIAL_DECKS, getCustomDecks } from '../data/decks';
 import { fetchAllCardsFromSupabase } from '../utils/supabase';
-import { Sparkles, ChevronRight, Lock, Flame, ShieldAlert, Award, Database } from 'lucide-react';
+import { Sparkles, ChevronRight, Lock, Flame, ShieldAlert, Award, Database, UserCheck, Play } from 'lucide-react';
 import confetti from 'canvas-confetti';
 
-export default function CardGame({ isPremiumUnlocked, onOpenPassModal, onSyncCard }) {
+export default function CardGame({ isPremiumUnlocked, onOpenPassModal, roomCode, players = [], isHost = false }) {
   const [selectedDeckType, setSelectedDeckType] = useState(DECK_TYPES.TRUTH_OR_DARE);
   const [selectedIntensity, setSelectedIntensity] = useState('free');
   const [cards, setCards] = useState([]);
@@ -14,8 +15,10 @@ export default function CardGame({ isPremiumUnlocked, onOpenPassModal, onSyncCar
   const [isFlipped, setIsFlipped] = useState(false);
   const [penaltyPoints, setPenaltyPoints] = useState(0);
   const [isDatabaseLoaded, setIsDatabaseLoaded] = useState(false);
+  const [currentTurnIndex, setCurrentTurnIndex] = useState(0);
+  const [remoteCard, setRemoteCard] = useState(null);
 
-  // Load and filter decks (from Supabase Database or Local fallback)
+  // Load and filter decks
   useEffect(() => {
     async function loadDecks() {
       let combined = [];
@@ -32,7 +35,6 @@ export default function CardGame({ isPremiumUnlocked, onOpenPassModal, onSyncCar
           penalty: c.penalty
         }));
       } else {
-        // Fallback to local default decks
         setIsDatabaseLoaded(false);
         const customDecks = getCustomDecks();
         combined = [...INITIAL_DECKS, ...customDecks];
@@ -51,18 +53,50 @@ export default function CardGame({ isPremiumUnlocked, onOpenPassModal, onSyncCar
     loadDecks();
   }, [selectedDeckType, selectedIntensity]);
 
-  const currentCard = cards[currentIndex];
+  // Subscribe to WebSocket Game State Sync
+  useEffect(() => {
+    const unsubscribe = wsClient.subscribe(({ type, payload }) => {
+      if (type === 'SYNC_GAME_STATE' && payload.actionType === 'CARD_DRAW') {
+        if (payload.state?.syncedCard) {
+          setRemoteCard(payload.state.syncedCard);
+          soundManager.playCardFlip();
+        }
+        if (payload.state?.turnIndex !== undefined) {
+          setCurrentTurnIndex(payload.state.turnIndex);
+        }
+      }
+    });
+
+    return unsubscribe;
+  }, []);
+
+  const currentCard = remoteCard || cards[currentIndex];
+  const turnPlayer = players.length > 0 ? players[currentTurnIndex % players.length] : null;
+  const isMyTurn = turnPlayer && turnPlayer.id === wsClient.playerId;
 
   const handleNextCard = () => {
     soundManager.playCardFlip();
     setIsFlipped(false);
-    setTimeout(() => {
-      const nextIdx = (currentIndex + 1) % (cards.length || 1);
-      setCurrentIndex(nextIdx);
-      if (cards[nextIdx] && onSyncCard) {
-        onSyncCard(cards[nextIdx]);
-      }
-    }, 150);
+
+    const nextCardIdx = (currentIndex + 1) % (cards.length || 1);
+    const nextTurnIdx = players.length > 0 ? (currentTurnIndex + 1) % players.length : 0;
+    const drawnCard = cards[nextCardIdx];
+
+    setCurrentIndex(nextCardIdx);
+    setCurrentTurnIndex(nextTurnIdx);
+    setRemoteCard(drawnCard);
+
+    if (wsClient.roomCode && drawnCard) {
+      const nextTurnUser = players[nextTurnIdx] || { name: 'เพื่อน' };
+      wsClient.sendAction(
+        'CARD_DRAW',
+        {
+          syncedCard: drawnCard,
+          turnIndex: nextTurnIdx
+        },
+        `ถึงตา ${nextTurnUser.name}: ${drawnCard.prompt}`
+      );
+    }
   };
 
   const handleIntensityChange = (levelKey) => {
@@ -84,13 +118,45 @@ export default function CardGame({ isPremiumUnlocked, onOpenPassModal, onSyncCar
 
   return (
     <div className="w-full max-w-md mx-auto flex flex-col space-y-4 p-2">
+      {/* TURN-BASED MULTIPLAYER BANNER */}
+      {roomCode && players.length > 0 && turnPlayer && (
+        <div className={`p-3 rounded-2xl border flex items-center justify-between shadow-lg transition-all animate-fadeIn ${
+          isMyTurn
+            ? 'bg-gradient-to-r from-pink-950 via-purple-900 to-slate-950 border-pink-500 shadow-[0_0_20px_rgba(255,0,122,0.4)]'
+            : 'bg-slate-950 border-slate-800'
+        }`}>
+          <div className="flex items-center gap-3">
+            <div className="relative">
+              <span className="text-3xl bg-slate-900 p-2 rounded-2xl border border-slate-700 block">{turnPlayer.avatar || '🍻'}</span>
+              <span className="absolute -bottom-1 -right-1 w-3.5 h-3.5 bg-emerald-400 border-2 border-slate-950 rounded-full animate-ping" />
+            </div>
+            <div>
+              <span className="text-[10px] uppercase font-bold tracking-widest text-slate-400 block">
+                ผู้เล่นที่ต้องตอบ/ทำภารกิจ
+              </span>
+              <h3 className="text-sm font-black text-white flex items-center gap-1.5">
+                <span>{turnPlayer.name}</span>
+                {isMyTurn && <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-pink-500 text-white animate-pulse">ถึงตาคุณ!</span>}
+              </h3>
+            </div>
+          </div>
+
+          <div className="text-right">
+            <span className="text-[10px] text-cyan-400 font-bold block">โหมดวนคิว</span>
+            <span className="text-xs text-slate-400 font-semibold">
+              คนละ 1 ใบ
+            </span>
+          </div>
+        </div>
+      )}
+
       {/* DB Status Badge Indicator */}
       <div className="flex items-center justify-between px-2 text-[11px] font-bold text-slate-400">
         <span className="flex items-center space-x-1">
           <Database className={`w-3.5 h-3.5 ${isDatabaseLoaded ? 'text-emerald-400' : 'text-amber-400'}`} />
           <span>คลังการ์ด: {isDatabaseLoaded ? 'Supabase Live DB 🟢' : 'Local Offline Mode 🟡'}</span>
         </span>
-        <span>คำถามในหมวดนี้ {cards.length} ใบ</span>
+        <span>คำถาม {cards.length} ใบ</span>
       </div>
 
       {/* Deck Type Tabs */}
@@ -212,8 +278,12 @@ export default function CardGame({ isPremiumUnlocked, onOpenPassModal, onSyncCar
               </div>
 
               {/* Card Footer Prompt */}
-              <div className="text-center text-xs text-slate-500 italic">
-                แตะเพื่อพลิกการ์ด / กดปุ่มด้านล่างเพื่อเปลี่ยนใบถัดไป
+              <div className="text-center text-xs text-slate-400 font-semibold italic">
+                {roomCode && turnPlayer
+                  ? isMyTurn
+                    ? '👉 ถึงตาคุณตอบคำถามแล้ว! ทำเสร็จแล้วกดใบถัดไป'
+                    : `⏳ รอ ${turnPlayer.name} ตอบคำถามและทำภารกิจ...`
+                  : 'แตะเพื่อพลิกการ์ด / กดปุ่มด้านล่างเพื่อเปลี่ยนใบถัดไป'}
               </div>
             </motion.div>
           ) : (
@@ -239,7 +309,7 @@ export default function CardGame({ isPremiumUnlocked, onOpenPassModal, onSyncCar
           onClick={handleNextCard}
           className="flex-[2] py-3.5 bg-gradient-to-r from-pink-500 via-purple-500 to-cyan-400 text-slate-950 font-black rounded-2xl text-sm shadow-[0_0_20px_rgba(255,0,122,0.5)] hover:shadow-[0_0_30px_rgba(0,242,254,0.7)] active:scale-95 transition flex items-center justify-center space-x-2"
         >
-          <span>ใบถัดไป</span>
+          <span>ใบถัดไป (วนตา)</span>
           <ChevronRight className="w-5 h-5" />
         </button>
       </div>
