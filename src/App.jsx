@@ -1,27 +1,12 @@
-import React, { useState, useEffect, useCallback, lazy, Suspense } from 'react';
+import React, { lazy, Suspense, useEffect, useMemo, useState } from 'react';
+import { BarChart3, Crown, Dices, LogIn, Plus, Radio, Users, Volume2, VolumeX, Sparkles } from 'lucide-react';
 import { soundManager } from './utils/audio';
 import { wsClient } from './utils/websocket';
 import LegalModal from './components/LegalModal';
 import RoomModal from './components/RoomModal';
 import PartyPassModal from './components/PartyPassModal';
-import {
-  Beer,
-  Volume2,
-  VolumeX,
-  Users,
-  Crown,
-  Dices,
-  RotateCw,
-  Fingerprint,
-  Smile,
-  Sparkles,
-  Layers,
-  Shield,
-  Plus,
-  LogIn,
-  QrCode,
-  Radio
-} from 'lucide-react';
+import RoomLobby from './components/RoomLobby';
+import StatsModal from './components/StatsModal';
 
 const CardGame = lazy(() => import('./components/CardGame'));
 const SpinWheel = lazy(() => import('./components/SpinWheel'));
@@ -30,413 +15,83 @@ const CrocodileDentist = lazy(() => import('./components/CrocodileDentist'));
 const DiceRoller = lazy(() => import('./components/DiceRoller'));
 const CustomDeckBuilder = lazy(() => import('./components/CustomDeckBuilder'));
 
-const AVATARS = ['🍻', '🦊', '🐲', '👑', '🍹', '🐯', '🔥', '🥳', '😎', '💃'];
-
 export default function App() {
-  const [activeTab, setActiveTab] = useState('cards');
+  const [activeTab, setActiveTab] = useState(wsClient.gameState.activeTab || null);
   const [isMuted, setIsMuted] = useState(false);
   const [isRoomModalOpen, setIsRoomModalOpen] = useState(false);
+  const [isStatsOpen, setIsStatsOpen] = useState(false);
+  const [isPickerOpen, setIsPickerOpen] = useState(false);
   const [isPassModalOpen, setIsPassModalOpen] = useState(false);
-  const [isPremiumUnlocked, setIsPremiumUnlocked] = useState(() => {
-    return localStorage.getItem('wonglao_vip_unlocked') === 'true';
-  });
-  const [syncedBanner, setSyncedBanner] = useState('');
+  const [isPremiumUnlocked, setIsPremiumUnlocked] = useState(() => localStorage.getItem('wonglao_vip_unlocked') === 'true');
   const [connectedPlayers, setConnectedPlayers] = useState(wsClient.players);
   const [roomCode, setRoomCode] = useState(wsClient.roomCode);
-
+  const [stats, setStats] = useState([]);
+  const [syncedBanner, setSyncedBanner] = useState('');
   const [homeInputCode, setHomeInputCode] = useState('');
   const [playerName, setPlayerName] = useState(() => localStorage.getItem('wonglao_player_name') || '');
   const [playerAvatar, setPlayerAvatar] = useState(() => localStorage.getItem('wonglao_player_avatar') || '🍻');
 
+  const shareUrl = useMemo(() => `${window.location.href.split('?')[0].split('#')[0]}?room=${roomCode || ''}`, [roomCode]);
+
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const roomParam = params.get('room');
-    if (roomParam) {
-      setHomeInputCode(roomParam);
-      setIsRoomModalOpen(true);
-    }
+    const roomParam = new URLSearchParams(window.location.search).get('room');
+    if (roomParam) { setHomeInputCode(roomParam); setIsRoomModalOpen(true); }
 
-    const unsubscribe = wsClient.subscribe((event) => {
-      const { type, payload } = event;
-
+    return wsClient.subscribe(({ type, payload = {} }) => {
       if (type === 'ROOM_CREATED' || type === 'ROOM_JOINED') {
-        setRoomCode(payload.roomCode);
-        setConnectedPlayers(payload.players);
-        soundManager.playWheelWin();
+        setRoomCode(payload.roomCode); setConnectedPlayers(payload.players || []); setStats(payload.gameState?.stats || []);
+        setActiveTab(payload.gameState?.activeTab || null); setIsRoomModalOpen(false); soundManager.playWheelWin();
       } else if (type === 'PLAYER_JOINED') {
-        setConnectedPlayers(payload.players);
-        setSyncedBanner(`🎉 ${payload.player.name} เข้าร่วมวงเหล้าแล้ว!`);
-        soundManager.playClick();
-        setTimeout(() => setSyncedBanner(''), 4000);
+        setConnectedPlayers(payload.players || []); if (payload.stats) setStats(payload.stats); setSyncedBanner(`🎉 ${payload.player?.name || 'เพื่อน'} เข้าร่วมวงแล้ว!`); setTimeout(() => setSyncedBanner(''), 4000);
       } else if (type === 'PLAYER_LEFT') {
-        setConnectedPlayers(payload.players);
+        setConnectedPlayers(payload.players || []);
       } else if (type === 'ROOM_LEFT') {
-        setRoomCode(null);
-        setConnectedPlayers([]);
-        setSyncedBanner('ออกจากห้องเรียบร้อย');
-        setTimeout(() => setSyncedBanner(''), 3000);
+        setRoomCode(null); setConnectedPlayers([]); setActiveTab(null); setStats([]); setIsPickerOpen(false);
       } else if (type === 'SYNC_GAME_STATE') {
-        if (payload.state.activeTab && payload.state.activeTab !== activeTab) {
-          setActiveTab(payload.state.activeTab);
-        }
-        if (payload.customMessage) {
-          setSyncedBanner(`${payload.senderName}: ${payload.customMessage}`);
-          soundManager.playSpinTick();
-          setTimeout(() => setSyncedBanner(''), 5000);
-        }
+        const nextState = payload.state || {};
+        if (nextState.activeTab !== undefined) setActiveTab(nextState.activeTab);
+        if (nextState.stats) setStats(nextState.stats);
+        if (payload.customMessage) { setSyncedBanner(`${payload.senderName}: ${payload.customMessage}`); setTimeout(() => setSyncedBanner(''), 4000); }
       }
     });
-
-    return unsubscribe;
-  }, [activeTab]);
+  }, []);
 
   const getOrSaveProfile = () => {
     const finalName = playerName.trim() || `สายตี้ #${Math.floor(10 + Math.random() * 90)}`;
-    localStorage.setItem('wonglao_player_name', finalName);
-    localStorage.setItem('wonglao_player_avatar', playerAvatar);
+    localStorage.setItem('wonglao_player_name', finalName); localStorage.setItem('wonglao_player_avatar', playerAvatar);
     if (!playerName.trim()) setPlayerName(finalName);
     return finalName;
   };
 
-  const toggleSound = () => {
-    const muted = soundManager.toggleMute();
-    setIsMuted(muted);
-  };
+  const createRoom = () => { soundManager.playClick(); wsClient.createRoom(getOrSaveProfile(), playerAvatar); setIsRoomModalOpen(true); };
+  const joinRoom = () => { if (!homeInputCode.trim()) return setIsRoomModalOpen(true); soundManager.playClick(); wsClient.joinRoom(homeInputCode.trim(), getOrSaveProfile(), playerAvatar); setIsRoomModalOpen(true); };
+  const selectGame = (game) => { if (!wsClient.isHost) return; soundManager.playClick(); setIsPickerOpen(false); wsClient.sendAction('SELECT_GAME', { activeTab: game }, `เริ่มเกม ${game}`); };
+  const leaveRoom = () => { soundManager.playClick(); wsClient.leaveRoom(); };
+  const soloGame = activeTab || 'dice';
 
-  const handleUnlockVIP = () => {
-    localStorage.setItem('wonglao_vip_unlocked', 'true');
-    setIsPremiumUnlocked(true);
-  };
+  const renderGame = (game) => <Suspense fallback={<div className="flex h-64 items-center justify-center text-cyan-400">กำลังโหลดเกม... 🍻</div>}>
+    {game === 'cards' && <CardGame isPremiumUnlocked={isPremiumUnlocked} onOpenPassModal={() => setIsPassModalOpen(true)} onSyncCard={(card) => wsClient.sendAction('GAME_EVENT', {}, `จั่วการ์ด: ${card.prompt}`)} />}
+    {game === 'wheel' && <SpinWheel onSyncResult={(result) => wsClient.sendAction('GAME_EVENT', {}, result)} />}
+    {game === 'finger' && <FingerChooser />}
+    {game === 'croc' && <CrocodileDentist onSyncResult={(result) => wsClient.sendAction('GAME_EVENT', {}, result)} />}
+    {game === 'dice' && <DiceRoller onSyncResult={(result) => wsClient.roomCode && wsClient.sendAction('GAME_EVENT', {}, result)} />}
+    {game === 'custom' && <CustomDeckBuilder />}
+  </Suspense>;
 
-  const handleTabChange = (tabKey) => {
-    soundManager.playClick();
-    setActiveTab(tabKey);
-    if (wsClient.roomCode) {
-      wsClient.sendAction('TAB_CHANGE', { activeTab: tabKey }, `เปลี่ยนไปโหมด ${tabKey}`);
-    }
-  };
+  return <div className="min-h-screen bg-[#0B0E14] pb-12 text-slate-100 selection:bg-pink-500 selection:text-white">
+    <header className="sticky top-0 z-40 border-b border-slate-800/80 bg-slate-950/80 px-4 py-3 backdrop-blur-md"><div className="mx-auto flex max-w-md items-center justify-between"><div className="flex items-center gap-2"><div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-tr from-pink-500 to-cyan-400 text-xl">🍻</div><div><h1 className="text-lg font-black tracking-wider text-transparent bg-gradient-to-r from-pink-500 via-cyan-400 to-amber-300 bg-clip-text">วงเหล้า</h1><p className="text-[9px] uppercase tracking-widest text-slate-400">WongLao Party Hub {roomCode && <span className="text-emerald-400">● ห้อง {roomCode}</span>}</p></div></div><div className="flex gap-2"><button onClick={() => setIsStatsOpen(true)} className="rounded-xl border border-amber-400/30 bg-amber-400/10 p-2 text-amber-300"><BarChart3 className="h-4 w-4" /></button><button onClick={() => setIsPassModalOpen(true)} className="rounded-xl border border-amber-400/40 bg-amber-400/10 p-2 text-amber-300"><Crown className="h-4 w-4" /></button><button onClick={() => setIsRoomModalOpen(true)} className={`rounded-xl border p-2 ${roomCode ? 'border-emerald-500/60 text-emerald-400' : 'border-slate-800 text-cyan-400'}`}><Users className="h-4 w-4" /></button><button onClick={() => setIsMuted(soundManager.toggleMute())} className="rounded-xl border border-slate-800 bg-slate-900 p-2 text-slate-300">{isMuted ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}</button></div></div></header>
+    {syncedBanner && <div className="flex items-center justify-center gap-2 border-b border-cyan-500/50 bg-cyan-950/60 p-2 text-xs font-bold text-cyan-300"><Radio className="h-4 w-4" />{syncedBanner}</div>}
 
-  const handleGameActionBroadcast = useCallback((message) => {
-    if (wsClient.roomCode) {
-      wsClient.sendAction('GAME_EVENT', {}, message);
-    }
-  }, []);
-
-  const handleQuickCreateRoom = () => {
-    soundManager.playClick();
-    const finalName = getOrSaveProfile();
-    wsClient.createRoom(finalName, playerAvatar);
-    setIsRoomModalOpen(true);
-  };
-
-  const handleQuickJoinRoom = () => {
-    if (!homeInputCode.trim()) {
-      setIsRoomModalOpen(true);
-      return;
-    }
-    soundManager.playClick();
-    const finalName = getOrSaveProfile();
-    wsClient.joinRoom(homeInputCode.trim(), finalName, playerAvatar);
-    setIsRoomModalOpen(true);
-  };
-
-  return (
-    <div className="min-h-screen bg-[#0B0E14] text-slate-100 flex flex-col justify-between pb-12 selection:bg-pink-500 selection:text-white">
-      {/* Top Navbar Header */}
-      <header className="sticky top-0 z-40 bg-slate-950/80 backdrop-blur-md border-b border-slate-800/80 px-4 py-3">
-        <div className="max-w-md mx-auto flex items-center justify-between">
-          <div className="flex items-center space-x-2">
-            <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-pink-500 to-cyan-400 p-0.5 shadow-[0_0_15px_rgba(255,0,122,0.6)]">
-              <div className="w-full h-full bg-slate-950 rounded-[14px] flex items-center justify-center text-xl">
-                🍻
-              </div>
-            </div>
-            <div>
-              <h1 className="text-lg font-black tracking-wider text-transparent bg-clip-text bg-gradient-to-r from-pink-500 via-cyan-400 to-amber-300">
-                วงเหล้า
-              </h1>
-              <p className="text-[9px] font-semibold text-slate-400 uppercase tracking-widest -mt-1 flex items-center space-x-1">
-                <span>WongLao Party Hub</span>
-                {roomCode && <span className="text-emerald-400 font-bold ml-1">● WebSocket Live</span>}
-              </p>
-            </div>
-          </div>
-
-          <div className="flex items-center space-x-2">
-            <button
-              onClick={() => { soundManager.playClick(); setIsPassModalOpen(true); }}
-              className={`px-2.5 py-1.5 rounded-xl text-xs font-bold flex items-center space-x-1 transition ${
-                isPremiumUnlocked
-                  ? 'bg-amber-400/20 text-amber-300 border border-amber-400/50'
-                  : 'bg-gradient-to-r from-amber-500 to-yellow-400 text-slate-950 shadow-[0_0_10px_rgba(255,215,0,0.5)] active:scale-95'
-              }`}
-            >
-              <Crown className="w-4 h-4 text-amber-300" />
-              <span className="hidden sm:inline">{isPremiumUnlocked ? 'VIP Active' : 'Pass 39฿'}</span>
-            </button>
-
-            <button
-              onClick={() => { soundManager.playClick(); setIsRoomModalOpen(true); }}
-              className={`p-2 border rounded-xl transition relative flex items-center space-x-1 ${
-                roomCode
-                  ? 'bg-emerald-950/60 border-emerald-500/80 text-emerald-400 shadow-[0_0_12px_rgba(0,255,102,0.4)]'
-                  : 'bg-slate-900 hover:bg-slate-800 border-slate-800 text-cyan-400'
-              }`}
-            >
-              <Users className="w-4 h-4" />
-              {roomCode && <span className="text-[11px] font-bold">{connectedPlayers.length}</span>}
-              {roomCode && (
-                <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-emerald-400 rounded-full animate-ping" />
-              )}
-            </button>
-
-            <button
-              onClick={toggleSound}
-              className="p-2 bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-300 rounded-xl transition"
-            >
-              {isMuted ? <VolumeX className="w-4 h-4 text-red-400" /> : <Volume2 className="w-4 h-4 text-emerald-400" />}
-            </button>
-          </div>
-        </div>
-      </header>
-
-      {syncedBanner && (
-        <div className="bg-gradient-to-r from-cyan-950 via-slate-900 to-pink-950 border-b border-cyan-500/50 p-2.5 text-center text-xs font-bold text-cyan-300 animate-pulse flex items-center justify-center space-x-2">
-          <Radio className="w-4 h-4 text-cyan-400 animate-spin" />
-          <span>{syncedBanner}</span>
-        </div>
-      )}
-
-      {/* Main Content Area */}
-      <main className="max-w-md mx-auto w-full px-4 pt-3 flex-1 space-y-4">
-        {/* ROOM BANNER CARD */}
-        <div className="bg-gradient-to-br from-slate-900 via-slate-950 to-slate-900 p-4 rounded-3xl border border-slate-800 shadow-[0_0_30px_rgba(0,242,254,0.15)] space-y-3">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-2">
-              <span className="text-xl">🔥</span>
-              <div>
-                <h3 className="text-sm font-black text-white">ห้องเล่นกับเพื่อน (Multiplayer)</h3>
-                <p className="text-[11px] text-slate-400">
-                  {roomCode ? `เชื่อมต่อห้อง ${roomCode} เรียบร้อย` : 'เล่นบนจอมือถือตัวเอง Sync พร้อมกันทั้งวง'}
-                </p>
-              </div>
-            </div>
-
-            {roomCode && (
-              <button
-                onClick={() => setIsRoomModalOpen(true)}
-                className="px-2.5 py-1 bg-emerald-500/20 border border-emerald-500/50 rounded-xl text-xs font-bold text-emerald-400 flex items-center space-x-1"
-              >
-                <QrCode className="w-3.5 h-3.5" />
-                <span>QR Code</span>
-              </button>
-            )}
-          </div>
-
-          <div className="flex space-x-2 bg-slate-950/80 p-2 rounded-2xl border border-slate-800/80">
-            <button
-              onClick={() => {
-                const nextAvIdx = (AVATARS.indexOf(playerAvatar) + 1) % AVATARS.length;
-                const newAv = AVATARS[nextAvIdx];
-                setPlayerAvatar(newAv);
-                localStorage.setItem('wonglao_player_avatar', newAv);
-              }}
-              className="w-9 h-9 rounded-xl bg-slate-900 border border-slate-700 text-lg flex items-center justify-center flex-shrink-0 active:scale-95 transition"
-              title="แตะเพื่อเปลี่ยนอวตาร"
-            >
-              {playerAvatar}
-            </button>
-            <input
-              type="text"
-              value={playerName}
-              onChange={(e) => {
-                setPlayerName(e.target.value);
-                localStorage.setItem('wonglao_player_name', e.target.value);
-              }}
-              placeholder="ใส่ชื่อเล่นในวง (ไม่ใส่ = สุ่มชื่อให้อัตโนมัติ)"
-              className="flex-1 bg-slate-900 border border-slate-700 rounded-xl px-3 text-xs text-white focus:outline-none focus:border-cyan-400"
-            />
-          </div>
-
-          {roomCode ? (
-            <div className="bg-emerald-950/40 border border-emerald-500/40 p-3 rounded-2xl flex items-center justify-between">
-              <div className="flex items-center space-x-2">
-                <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-ping" />
-                <div className="text-xs">
-                  <span className="font-bold text-white block">กำลังอยู่ในห้อง: {roomCode}</span>
-                  <span className="text-slate-400 text-[10px]">สมาชิก {connectedPlayers.length} เครื่อง</span>
-                </div>
-              </div>
-              <button
-                onClick={() => setIsRoomModalOpen(true)}
-                className="px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-cyan-400 rounded-xl text-xs font-bold border border-slate-700"
-              >
-                ดูสมาชิก
-              </button>
-            </div>
-          ) : (
-            <div className="grid grid-cols-2 gap-2">
-              <button
-                onClick={handleQuickCreateRoom}
-                className="py-3 bg-gradient-to-r from-cyan-400 to-teal-300 text-slate-950 font-black rounded-2xl text-xs shadow-md hover:shadow-[0_0_15px_#00F2FE] active:scale-95 transition flex items-center justify-center space-x-1.5"
-              >
-                <Plus className="w-4 h-4" />
-                <span>สร้างห้องตี้ใหม่</span>
-              </button>
-
-              <div className="flex space-x-1">
-                <input
-                  type="text"
-                  value={homeInputCode}
-                  onChange={(e) => setHomeInputCode(e.target.value)}
-                  placeholder="รหัส 4 หลัก"
-                  className="w-20 bg-slate-950 border border-slate-700 rounded-2xl px-2 text-center text-xs text-white font-bold focus:outline-none focus:border-pink-500"
-                  onKeyDown={(e) => e.key === 'Enter' && handleQuickJoinRoom()}
-                />
-                <button
-                  onClick={handleQuickJoinRoom}
-                  className="flex-1 py-3 bg-gradient-to-r from-pink-500 to-rose-600 text-white font-black rounded-2xl text-xs shadow-md hover:shadow-[0_0_15px_#FF007A] active:scale-95 transition flex items-center justify-center space-x-1"
-                >
-                  <LogIn className="w-4 h-4" />
-                  <span>เข้าห้อง</span>
-                </button>
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* Navigation Bar */}
-        <div className="grid grid-cols-6 gap-1 bg-slate-950 p-1.5 rounded-2xl border border-slate-800 text-[11px] font-bold">
-          <button
-            onClick={() => handleTabChange('cards')}
-            className={`py-2 rounded-xl flex flex-col items-center justify-center transition ${
-              activeTab === 'cards'
-                ? 'bg-gradient-to-r from-pink-500 to-rose-600 text-white shadow-md'
-                : 'text-slate-400 hover:text-slate-200'
-            }`}
-          >
-            <Layers className="w-4 h-4 mb-0.5" />
-            <span>การ์ด</span>
-          </button>
-
-          <button
-            onClick={() => handleTabChange('wheel')}
-            className={`py-2 rounded-xl flex flex-col items-center justify-center transition ${
-              activeTab === 'wheel'
-                ? 'bg-gradient-to-r from-cyan-500 to-teal-400 text-slate-950 shadow-md'
-                : 'text-slate-400 hover:text-slate-200'
-            }`}
-          >
-            <RotateCw className="w-4 h-4 mb-0.5" />
-            <span>วงล้อ</span>
-          </button>
-
-          <button
-            onClick={() => handleTabChange('finger')}
-            className={`py-2 rounded-xl flex flex-col items-center justify-center transition ${
-              activeTab === 'finger'
-                ? 'bg-gradient-to-r from-pink-500 to-purple-500 text-white shadow-md'
-                : 'text-slate-400 hover:text-slate-200'
-            }`}
-          >
-            <Fingerprint className="w-4 h-4 mb-0.5" />
-            <span>จับนิ้ว</span>
-          </button>
-
-          <button
-            onClick={() => handleTabChange('croc')}
-            className={`py-2 rounded-xl flex flex-col items-center justify-center transition ${
-              activeTab === 'croc'
-                ? 'bg-gradient-to-r from-emerald-500 to-teal-400 text-slate-950 shadow-md'
-                : 'text-slate-400 hover:text-slate-200'
-            }`}
-          >
-            <Smile className="w-4 h-4 mb-0.5" />
-            <span>จระเข้</span>
-          </button>
-
-          <button
-            onClick={() => handleTabChange('dice')}
-            className={`py-2 rounded-xl flex flex-col items-center justify-center transition ${
-              activeTab === 'dice'
-                ? 'bg-gradient-to-r from-amber-400 to-yellow-300 text-slate-950 shadow-md'
-                : 'text-slate-400 hover:text-slate-200'
-            }`}
-          >
-            <Dices className="w-4 h-4 mb-0.5" />
-            <span>ลูกเต๋า</span>
-          </button>
-
-          <button
-            onClick={() => handleTabChange('custom')}
-            className={`py-2 rounded-xl flex flex-col items-center justify-center transition ${
-              activeTab === 'custom'
-                ? 'bg-gradient-to-r from-purple-500 to-indigo-500 text-white shadow-md'
-                : 'text-slate-400 hover:text-slate-200'
-            }`}
-          >
-            <Sparkles className="w-4 h-4 mb-0.5" />
-            <span>Custom</span>
-          </button>
-        </div>
-
-        {/* Tab Views with Suspense */}
-        <Suspense fallback={
-          <div className="w-full h-64 flex items-center justify-center text-cyan-400 text-sm font-bold animate-pulse">
-            กำลังโหลดเกม... 🍻
-          </div>
-        }>
-          {activeTab === 'cards' && (
-            <CardGame
-              isPremiumUnlocked={isPremiumUnlocked}
-              onOpenPassModal={() => setIsPassModalOpen(true)}
-              onSyncCard={(card) => handleGameActionBroadcast(`จั่วการ์ด: ${card.prompt}`)}
-            />
-          )}
-
-          {activeTab === 'wheel' && (
-            <SpinWheel onSyncResult={(res) => handleGameActionBroadcast(res)} />
-          )}
-
-          {activeTab === 'finger' && <FingerChooser />}
-
-          {activeTab === 'croc' && (
-            <CrocodileDentist onSyncResult={(res) => handleGameActionBroadcast(res)} />
-          )}
-
-          {activeTab === 'dice' && (
-            <DiceRoller onSyncResult={(res) => handleGameActionBroadcast(res)} />
-          )}
-
-          {activeTab === 'custom' && <CustomDeckBuilder />}
-        </Suspense>
-      </main>
-
-      <footer className="mt-8 text-center space-y-2">
-        <div className="flex items-center justify-center space-x-2 text-[11px] text-slate-500">
-          <Shield className="w-3.5 h-3.5 text-emerald-400" />
-          <span>เมาไม่ขับ • มีสิทธิ์ปฏิเสธภารกิจได้หากไม่ปลอดภัย • Age 18+</span>
-        </div>
-        <p className="text-[10px] text-slate-600">
-          © 2026 WongLao Party Hub | wonglao.app
-        </p>
-      </footer>
-
-      <LegalModal />
-      <RoomModal
-        isOpen={isRoomModalOpen}
-        onClose={() => setIsRoomModalOpen(false)}
-        initialRoomCode={homeInputCode}
-        playerName={playerName}
-        setPlayerName={setPlayerName}
-        playerAvatar={playerAvatar}
-        setPlayerAvatar={setPlayerAvatar}
-      />
-      <PartyPassModal
-        isOpen={isPassModalOpen}
-        onClose={() => setIsPassModalOpen(false)}
-        onUnlock={handleUnlockVIP}
-      />
-    </div>
-  );
+    <main className="mx-auto w-full max-w-md space-y-4 px-4 pt-5">
+      {!roomCode ? <>
+        <section className="rounded-3xl border border-slate-800 bg-gradient-to-br from-slate-900 to-slate-950 p-5"><p className="text-xs font-bold uppercase tracking-widest text-cyan-400">เล่นคนเดียว</p><h2 className="mt-1 text-2xl font-black text-white">เกมพร้อมเล่นบนเครื่องนี้</h2><p className="mt-1 text-xs text-slate-400">เลือกเล่นเดี่ยวได้ทันที หรือสร้างห้องสำหรับเกมที่ต้องเล่นวนกัน</p><div className="mt-4 grid grid-cols-2 gap-2"><button onClick={() => setActiveTab('dice')} className={`rounded-2xl border p-4 text-left ${soloGame === 'dice' ? 'border-amber-400 bg-amber-400/10' : 'border-slate-800 bg-slate-950'}`}><Dices className="mb-2 h-6 w-6 text-amber-300" /><p className="text-sm font-black">ลูกเต๋า</p><p className="text-[10px] text-slate-500">เล่นคนเดียวได้</p></button><button onClick={() => setActiveTab('custom')} className={`rounded-2xl border p-4 text-left ${soloGame === 'custom' ? 'border-purple-400 bg-purple-400/10' : 'border-slate-800 bg-slate-950'}`}><Sparkles className="mb-2 h-6 w-6 text-purple-300" /><p className="text-sm font-black">สร้างเด็ค</p><p className="text-[10px] text-slate-500">เตรียมเกมของวง</p></button></div></section>
+        <section className="rounded-3xl border border-pink-500/30 bg-gradient-to-br from-pink-950/40 to-slate-950 p-5"><h3 className="text-lg font-black text-white">เกมวนกันเล่น อยู่ในห้อง</h3><p className="mt-1 text-xs text-slate-400">สร้างห้อง → รอเพื่อน → เลือกเกม → เปลี่ยนเกมได้ตลอด</p><div className="mt-4 grid grid-cols-[1fr_auto] gap-2"><button onClick={createRoom} className="flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-cyan-400 to-teal-300 py-3 text-xs font-black text-slate-950"><Plus className="h-4 w-4" />สร้างห้องใหม่</button><button onClick={joinRoom} className="flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-pink-500 to-rose-600 px-4 py-3 text-xs font-black text-white"><LogIn className="h-4 w-4" />เข้าห้อง</button></div><input value={homeInputCode} onChange={(e) => setHomeInputCode(e.target.value)} placeholder="รหัสห้อง 4 หลัก (ถ้ามี)" className="mt-2 w-full rounded-2xl border border-slate-700 bg-slate-950 px-3 py-3 text-center text-xs text-white outline-none focus:border-pink-400" onKeyDown={(e) => e.key === 'Enter' && joinRoom()} /></section>
+        {renderGame(soloGame)}
+      </> : (activeTab && !isPickerOpen) ? <>
+        <div className="flex items-center justify-between rounded-2xl border border-emerald-500/30 bg-emerald-950/30 px-4 py-3"><div><p className="text-xs font-bold text-emerald-300">กำลังเล่นกับ {connectedPlayers.length} คน</p><p className="text-[10px] text-slate-400">เปลี่ยนเกมได้ทุกเมื่อโดยกดปุ่มด้านขวา</p></div><button onClick={() => setIsPickerOpen(true)} className="rounded-xl border border-cyan-400/40 px-3 py-2 text-xs font-bold text-cyan-300">เปลี่ยนเกม</button></div>{renderGame(activeTab)}
+      </> : <RoomLobby roomCode={roomCode} players={connectedPlayers} isHost={wsClient.isHost} activeGame={activeTab} stats={stats} shareUrl={shareUrl} onSelectGame={selectGame} onOpenStats={() => setIsStatsOpen(true)} onCopyRoom={() => navigator.clipboard.writeText(shareUrl)} onLeave={leaveRoom} />}
+    </main>
+    <footer className="mt-8 text-center text-[10px] text-slate-600">© 2026 WongLao Party Hub · Age 18+</footer>
+    <LegalModal /><RoomModal isOpen={isRoomModalOpen} onClose={() => setIsRoomModalOpen(false)} initialRoomCode={homeInputCode} playerName={playerName} setPlayerName={setPlayerName} playerAvatar={playerAvatar} setPlayerAvatar={setPlayerAvatar} /><StatsModal isOpen={isStatsOpen} onClose={() => setIsStatsOpen(false)} stats={stats} /><PartyPassModal isOpen={isPassModalOpen} onClose={() => setIsPassModalOpen(false)} onUnlock={() => { localStorage.setItem('wonglao_vip_unlocked', 'true'); setIsPremiumUnlocked(true); }} />
+  </div>;
 }
