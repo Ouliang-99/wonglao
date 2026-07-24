@@ -11,22 +11,25 @@ class WongLaoWebSocketClient {
     this.listeners = [];
     this.shouldReconnect = true;
     this.pendingQueue = [];
-    this.serverUrl = this.getWsUrl();
+    this.serverUrlIndex = 0;
+    this.serverUrls = this.getWsUrls();
   }
 
-  getWsUrl() {
+  getWsUrls() {
     if (import.meta.env.VITE_WS_URL) {
-      return import.meta.env.VITE_WS_URL;
+      return [import.meta.env.VITE_WS_URL];
     }
 
     const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
     if (isLocalhost) {
       const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-      return `${protocol}//${window.location.hostname}:8080`;
+      return [
+        `${protocol}//${window.location.hostname}:8080`, // 1. Try local server first
+        'wss://wonglao.onrender.com'                      // 2. Fallback to online Render server
+      ];
     }
 
-    // Production Render WebSocket Server URL
-    return 'wss://wonglao.onrender.com';
+    return ['wss://wonglao.onrender.com'];
   }
 
   connect() {
@@ -35,12 +38,13 @@ class WongLaoWebSocketClient {
     }
 
     this.shouldReconnect = true;
+    const currentUrl = this.serverUrls[this.serverUrlIndex % this.serverUrls.length];
 
     try {
-      this.ws = new WebSocket(this.serverUrl);
+      this.ws = new WebSocket(currentUrl);
 
       this.ws.onopen = () => {
-        console.log('⚡ Connected to WongLao WebSocket Server:', this.serverUrl);
+        console.log('⚡ Connected to WongLao WebSocket Server:', currentUrl);
         this.flushPendingQueue();
       };
 
@@ -54,21 +58,42 @@ class WongLaoWebSocketClient {
       };
 
       this.ws.onclose = () => {
-        console.log('WS Connection closed.');
+        console.log(`WS Connection to ${currentUrl} closed.`);
         if (this.shouldReconnect) {
-          console.log('Attempting reconnect in 3s...');
+          // Switch to fallback server URL if local server failed
+          if (this.serverUrls.length > 1) {
+            this.serverUrlIndex = (this.serverUrlIndex + 1) % this.serverUrls.length;
+          }
+          console.log(`Attempting reconnect in 2s to ${this.serverUrls[this.serverUrlIndex % this.serverUrls.length]}...`);
           setTimeout(() => {
             if (this.shouldReconnect) this.connect();
-          }, 3000);
+          }, 2000);
         }
       };
 
       this.ws.onerror = (err) => {
-        console.warn('WS Connection error:', err);
+        console.warn(`WS Connection error to ${currentUrl}:`, err);
       };
     } catch (err) {
       console.warn('WebSocket connection failed:', err);
+      // Fallback local room creation if completely offline
+      this.createLocalFallbackRoom();
     }
+  }
+
+  createLocalFallbackRoom(playerName = 'Host', playerAvatar = '🍻') {
+    const code = Math.floor(1000 + Math.random() * 9000).toString();
+    const pid = 'player_local_' + Math.random().toString(36).substring(2, 7);
+    this.roomCode = code;
+    this.playerId = pid;
+    this.isHost = true;
+    this.players = [{ id: pid, name: playerName, avatar: playerAvatar, isHost: true }];
+    this.gameState = { roomPhase: 'lobby', activeTab: null, stats: [] };
+
+    this.notifyListeners({
+      type: 'ROOM_CREATED',
+      payload: { roomCode: code, playerId: pid, players: this.players, gameState: this.gameState }
+    });
   }
 
   flushPendingQueue() {
@@ -161,6 +186,15 @@ class WongLaoWebSocketClient {
     } else {
       this.pendingQueue.push(msgObj);
       this.connect();
+      // If server doesn't respond in 2.5s and creating room, generate local room
+      if (msgObj.type === 'CREATE_ROOM') {
+        setTimeout(() => {
+          if (!this.roomCode) {
+            console.log('Server timeout, generating fallback room');
+            this.createLocalFallbackRoom(msgObj.payload?.playerName, msgObj.payload?.playerAvatar);
+          }
+        }, 2500);
+      }
     }
   }
 
